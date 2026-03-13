@@ -1,0 +1,427 @@
+%% svg-animate — Animated SVG diagrams with TikZ
+%% Copyright (C) 2026  Sébastien Gross
+%%
+%% This program is free software: you can redistribute it and/or modify
+%% it under the terms of the GNU Affero General Public License as published by
+%% the Free Software Foundation, either version 3 of the License, or
+%% (at your option) any later version.
+%%
+%% This program is distributed in the hope that it will be useful,
+%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%% GNU Affero General Public License for more details.
+%%
+%% You should have received a copy of the GNU Affero General Public License
+%% along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{svg-animate}[2026/03/13 v0.1 Animated SVG diagrams with TikZ]
+
+%% ── Engine detection ─────────────────────────────────────────────────────────
+%% Must come before \RequirePackage{tikz}.
+%% Only latex in DVI output mode needs the dvisvgm PGF and graphicx drivers.
+%%
+%% \pdfoutput is defined by pdfTeX (latex/pdflatex) and LuaTeX, with value:
+%%   0 → DVI output (latex in DVI-compat mode) → needs dvisvgm
+%%   1 → PDF output                            → default drivers are fine
+%%
+%% XeTeX does not define \pdfoutput at all, so the \ifdefined guard silently
+%% skips the block for xelatex without any explicit \XeTeXversion check.
+\ifdefined\pdfoutput
+  \ifnum\pdfoutput=0
+    \def\pgfsysdriver{pgfsys-dvisvgm.def}
+    \PassOptionsToPackage{dvisvgm}{graphicx}
+  \fi
+\fi
+
+\RequirePackage{tikz}
+\RequirePackage{graphicx}
+\DeclareGraphicsExtensions{.png,.jpg,.jpeg,.pdf}
+\usetikzlibrary{arrows.meta, animations}
+\usetikzlibrary{calc}
+
+%% ── Animation ────────────────────────────────────────────────────────────────
+%%
+%% /anim/.cd keys:
+%%
+%%   duration=2            seconds per step (default)
+%%   active opacity=1      opacity when the step is active
+%%   inactive opacity=0    opacity when inactive (\reveal)
+%%
+\tikzset{
+  /anim/.cd,
+  duration/.initial          = 2,    %% seconds per step (default)
+  active opacity/.initial    = 1,    %% opacity when the step is active
+  inactive opacity/.initial  = 0,    %% opacity when inactive  (\reveal)
+}
+
+\makeatletter
+
+%% animframe{start}{end}{total}
+%%
+%%   Low-level environment.  Wraps its content in a TikZ scope that animates
+%%   the opacity so the content is visible only during the window [start, end].
+%%   All three arguments are absolute times in seconds.
+%%   Used internally by \reveal; also available for advanced use cases.
+%%
+%%   #1 = start time (s)   #2 = end time (s)   #3 = total duration (s)
+%%
+%%   The TikZ animate key works as follows:
+%%
+%%     \begin{scope}[animate={myself : opacity = {Ts = "V", ...}}]
+%%       ... content ...
+%%     \end{scope}
+%%
+%%   "myself" means the animation targets every element drawn inside this scope.
+%%   Each  Ts = "V"  entry is a keyframe: at time T seconds, set opacity to V.
+%%   SVG interpolates linearly between consecutive keyframes.
+%%   "repeats" makes the animation loop forever after reaching the last keyframe.
+%%
+%%   The epsilon trick (subtracting 0.001 s) forces instantaneous jumps:
+%%   instead of fading gradually, the opacity holds its value until 1 ms before
+%%   the transition, then snaps.  Without it every step would cross-fade with
+%%   its neighbors.
+%%
+%%   \pgfmathsetmacro  \macro  {expr}  evaluates {expr} with PGF's math engine
+%%   and stores the result as a plain decimal string in \macro.
+%%   The @-sign in \animframe@opA etc. is a naming convention for private macros
+%%   (\makeatletter / \makeatother make @ a valid letter for this purpose).
+%%
+\newenvironment{animframe}[3]{%
+  \pgfmathsetmacro\animft@opA{\pgfkeysvalueof{/anim/active opacity}}%    e.g. 1
+  \pgfmathsetmacro\animft@opI{\pgfkeysvalueof{/anim/inactive opacity}}%  e.g. 0
+  %% Epsilon boundaries: one millisecond before each hard transition.
+  %% max(..., 0) prevents a negative timestamp when start=0.
+  \pgfmathsetmacro\animft@starte{max(#1 - 0.001, 0)}%
+  \pgfmathsetmacro\animft@ende{#2 - 0.001}%
+  \pgfmathsetmacro\animft@totale{#3 - 0.001}%
+  %% \ifdim compares two TeX dimensions.  We append "pt" to turn the seconds
+  %% value into a dimension, giving a convenient way to test whether start == 0.
+  %% When start=0 we omit the initial inactive phase (it would be at t<0).
+  \ifdim#1pt=0pt%
+    %% Step starts at t=0 — active immediately.
+    %% Example: start=0, end=1, total=3, opA=1, opI=0
+    %%   t=0.000  opacity=1
+    %%   t=0.999  opacity=1
+    %%   t=1.000  opacity=0   <- snap off
+    %%   t=2.999  opacity=0
+    %%   repeats
+    \begin{scope}[animate={%
+      myself : opacity = {%
+        0s = "\animft@opA",%
+        \animft@ende s = "\animft@opA",%
+        #2 s = "\animft@opI",%
+        \animft@totale s = "\animft@opI",%
+        repeats,%
+      }%
+    }]%
+  \else%
+    %% Step starts after t=0 — inactive first, then active, then inactive again.
+    %% Example: start=1, end=2, total=3, opA=1, opI=0
+    %%   t=0.000  opacity=0
+    %%   t=0.999  opacity=0
+    %%   t=1.000  opacity=1   <- snap on
+    %%   t=1.999  opacity=1
+    %%   t=2.000  opacity=0   <- snap off
+    %%   t=2.999  opacity=0
+    %%   repeats
+    \begin{scope}[animate={%
+      myself : opacity = {%
+        0s = "\animft@opI",%
+        \animft@starte s = "\animft@opI",%
+        #1 s = "\animft@opA",%
+        \animft@ende s = "\animft@opA",%
+        #2 s = "\animft@opI",%
+        \animft@totale s = "\animft@opI",%
+        repeats,%
+      }%
+    }]%
+  \fi%
+}{%
+  \end{scope}%
+}
+
+\makeatother
+
+
+%% ── High-level animate environment ───────────────────────────────────────────
+%%
+%% ── The problem ──────────────────────────────────────────────────────────────
+%%
+%%   Each \reveal needs to know its own window of activity as absolute times:
+%%
+%%     step 1 active from 0 s to 1 s    (out of 3 s total)
+%%     step 2 active from 1 s to 2 s
+%%     step 3 active from 2 s to 3 s
+%%
+%%   But to compute those numbers we first need to know the total duration —
+%%   and we are still in the middle of reading the body.  A naive single pass
+%%   cannot work because we must know the total before we emit any keyframe.
+%%
+%% ── Step 1: collect the whole body without executing it (+b) ─────────────────
+%%
+%%   The +b argument spec in \NewDocumentEnvironment tells LaTeX to grab
+%%   everything up to \end{animate} as a single token list (#2) and hand it
+%%   to us verbatim, without executing a single command inside it.
+%%   Given:
+%%
+%%     \begin{animate}[duration=1]
+%%       \reveal{\node (vm1)...}
+%%       \animstep
+%%       \reveal{\node (vm2)...}
+%%       \animstep[duration=3]
+%%       \reveal{\node (vm3)...}
+%%     \end{animate}
+%%
+%%   #2 is the raw token sequence:
+%%     \reveal{\node (vm1)...} \animstep \reveal{\node (vm2)...}
+%%     \animstep[duration=3] \reveal{\node (vm3)...}
+%%
+%% ── Step 2: split into per-step segments ─────────────────────────────────────
+%%
+%%   \seq_set_split:Nnn cuts #2 everywhere the token \animstep appears,
+%%   producing a sequence of three token lists (still not executed):
+%%
+%%     seg 1:  \reveal{\node (vm1)...}
+%%     seg 2:  \reveal{\node (vm2)...}
+%%     seg 3:  [duration=3] \reveal{\node (vm3)...}   <- note the leading [opts]
+%%
+%%   The \animstep tokens themselves are consumed as delimiters and discarded.
+%%
+%% ── Step 3: peel off per-step [opts] ─────────────────────────────────────────
+%%
+%%   When the user writes \animstep[duration=3], the [duration=3] tokens end
+%%   up at the front of the next segment (seg 3 above).  Before we can use
+%%   the segment content as TikZ code we must extract those options first.
+%%   \__anim_pop_opts:NN does this with a regex: if the segment starts with
+%%   [...], it captures the content and strips it from the token list.
+%%
+%% ── Step 4 (pass 1): sum up the total duration ───────────────────────────────
+%%
+%%   We iterate over all segments without executing their TikZ content.
+%%   For each segment we temporarily apply its options inside a TeX group
+%%   (so they don't spill into the next step) and read /anim/duration.
+%%   After the loop:  total = 1 + 1 + 3 = 5 s.
+%%
+%% ── Step 5 (pass 2): render each step with the correct timing ─────────────────
+%%
+%%   We iterate again, this time executing each segment's TikZ code.
+%%   Before executing, we set three global FP variables:
+%%     \g__anim_step_start_fp   e.g. 2.0
+%%     \g__anim_step_end_fp     e.g. 5.0
+%%     \g__anim_total_fp        5.0  (constant across all steps)
+%%
+%%   When \reveal{...} runs inside the segment, it reads those globals and
+%%   passes them to \animframe, which emits the SVG opacity keyframes.
+%%   After execution, start advances to end, ready for the next step.
+%%
+%% ── User interface ────────────────────────────────────────────────────────────
+%%
+%%   \begin{animate}[options]
+%%     \reveal[opts]{...}      active opacity when active, inactive opacity otherwise
+%%     \animstep[opts]         step separator; opts apply to all elements of this step
+%%     ...
+%%   \end{animate}
+%%
+%%   Options cascade: animate-level → \animstep-level → per-element.
+%%   Inner options override outer ones.
+%%
+%%   /anim/.cd keys:
+%%     duration=2            seconds per step
+%%     active opacity=1      opacity when active
+%%     inactive opacity=0    opacity when inactive (0=hidden, >0=dimmed)
+%%
+%%   Note: 'duration' on \reveal is accepted but silently ignored.
+%%
+%%   Global defaults:
+%%     \tikzset{/anim/duration=2}
+%%     \tikzset{/anim/inactive opacity=0.3}
+%%
+\ExplSyntaxOn
+
+%% ── expl3 naming conventions ─────────────────────────────────────────────────
+%%
+%%   expl3 is the modern LaTeX programming layer.  Everything follows a strict
+%%   naming scheme that encodes type, scope, and module in the name itself.
+%%
+%%   Data types (prefix before the first _):
+%%     \fp_...   floating-point scalar (decimal arithmetic)
+%%     \seq_...  ordered list of items
+%%     \tl_...   token list (an arbitrary chunk of LaTeX code stored as a value)
+%%
+%%   Scope and visibility (prefix of the variable name after the type):
+%%     \g__anim_...   global variable, private to this module (__ = private)
+%%     \l__anim_...   local  variable, private to this module
+%%     Global variables persist across TeX groups; local ones are restored.
+%%
+%%   Function signatures (suffix after the last :):
+%%     :N    one unbraced token argument      e.g. \fp_new:N \myfp
+%%     :Nn   one token + one braced argument  e.g. \tl_set:Nn \mytl {hello}
+%%     :Ne   token + e-expanded braced arg    (content fully expanded before use)
+%%     :NV   token + V-expanded arg           (variable replaced by its value)
+%%     :NTF  token + true branch + false branch  (conditional)
+
+%% Absolute timing of the step currently being rendered (seconds).
+%% Set by animate before executing each step's content; read by \reveal.
+\fp_new:N   \g__anim_step_start_fp   %% start time of the active step
+\fp_new:N   \g__anim_step_end_fp     %% end   time of the active step
+\fp_new:N   \g__anim_total_fp        %% total animation duration (all steps summed)
+\fp_new:N   \g__anim_step_dur_fp     %% scratch: duration of the current step
+
+%% List of per-step token lists produced by splitting the body at \animstep.
+\seq_new:N  \l__anim_steps_seq
+\seq_new:N  \l__anim_pop_seq         %% scratch: regex capture groups
+
+%% Scratch token lists used inside the animate loops.
+\tl_new:N   \l__anim_step_opts_tl   %% options extracted from \animstep[...]
+\tl_new:N   \l__anim_seg_tl         %% one step's body (copy, modified in place)
+\tl_new:N   \l__anim_dur_tl         %% string value of /anim/duration for FP arithmetic
+
+%% \animstep[options] — step delimiter; [options] apply to all elements of the next step.
+%% Defined as a no-op: it is never executed, only used as a split token by animate.
+\NewDocumentCommand \animstep { } { }
+
+%% \__anim_pop_opts:NN {#1} {#2}
+%%   Extract a leading [opts] group from token list variable #2 into #1.
+%%   If #2 starts with [...] (after trimming spaces), #1 receives the content
+%%   between the brackets and the [...] is removed from #2.
+%%   If there is no leading [...], #1 is cleared and #2 is left unchanged.
+%%
+%%   The regex  \A \[ ([^\]]*) \]  means:
+%%     \A        start of string
+%%     \[        literal [
+%%     ([^\]]*)  capture group: any characters except ]
+%%     \]        literal ]
+\cs_new_protected:Npn \__anim_pop_opts:NN #1 #2 {
+  \tl_trim_spaces:N #2                                           %% remove surrounding spaces
+  \regex_extract_once:nVNTF { \A \[ ([^\]]*) \] } #2 \l__anim_pop_seq {
+    %% Match found: capture group 2 holds the content between [ and ]
+    \tl_set:Ne #1 { \seq_item:Nn \l__anim_pop_seq { 2 } }       %% #1 = captured opts
+    \regex_replace_once:nnN { \A \[ [^\]]* \] } { } #2          %% strip [...] from #2
+    \tl_trim_spaces:N #2                                         %% trim again after strip
+  } {
+    \tl_clear:N #1                                               %% no match: #1 = empty
+  }
+}
+
+%% \reveal[options]{content}
+%%   active opacity when active, inactive opacity otherwise.
+%%   Default: fully visible when active (opacity 1), fully hidden when inactive (opacity 0).
+%%   Set inactive opacity > 0 to dim instead of hide (e.g. for nodes that stay visible).
+%%   'duration' in [options] is accepted but silently ignored.
+%%   Opens a TeX group so the \tikzset override stays local to this element,
+%%   then delegates to \animframe with the pre-computed absolute times.
+\NewDocumentCommand \reveal { O{} m } {
+  \group_begin:                                                   %% isolate option scope
+    \tikzset{ /anim/.cd, #1 }                                    %% apply element-level opts
+    \begin{animframe}
+      { \fp_to_decimal:N \g__anim_step_start_fp }                %% e.g. "1.0"
+      { \fp_to_decimal:N \g__anim_step_end_fp }                  %% e.g. "2.0"
+      { \fp_to_decimal:N \g__anim_total_fp }                     %% e.g. "3.0"
+      #2                                                          %% the TikZ content
+    \end{animframe}
+  \group_end:
+}
+
+\NewDocumentEnvironment { animate } { O{} +b } {
+  %% #1 = animate-level options (e.g. "duration=1, inactive opacity=0")
+  %% #2 = full body collected verbatim by +b, not yet executed
+  \tikzset{ /anim/.cd, #1 }                      %% apply animate-level options globally
+
+  %% \seq_set_split:Nnn  target-seq  {delimiter-token}  {token-list}
+  %% Cuts #2 everywhere \animstep appears; stores the pieces in \l__anim_steps_seq.
+  %% Example result for 3 steps separated by two \animstep tokens:
+  %%   item 1:  \reveal{\node (vm1)...}
+  %%   item 2:  \reveal{\node (vm2)...}
+  %%   item 3:  [duration=3] \reveal{\node (vm3)...}
+  %% None of the items has been executed yet — they are inert token lists.
+  \seq_set_split:Nnn \l__anim_steps_seq { \animstep } { #2 }
+
+  %%
+  %% Pass 1: sum up all step durations to get the total — without executing
+  %%         any TikZ content.
+  %%
+  \fp_gzero:N \g__anim_total_fp       %% total = 0.0
+  %%
+  %% \seq_map_inline:Nn  seq  { body using ##1 }
+  %% Loops over every item in the sequence.  Inside the body, ##1 is the
+  %% current item.  (Double # because we are already inside \NewDocumentEnvironment
+  %% which uses single # for its own arguments.)
+  \seq_map_inline:Nn \l__anim_steps_seq {
+    %%
+    %% \tl_set:Nn  var  {value}  — assign a token list variable.
+    %% We copy ##1 into a named variable so \__anim_pop_opts:NN can modify it
+    %% (seq items are read-only; a local copy is needed).
+    \tl_set:Nn \l__anim_seg_tl { ##1 }
+    %%
+    %% Strip the leading [opts] (e.g. [duration=3]) from \l__anim_seg_tl.
+    %% The extracted opts string goes into \l__anim_step_opts_tl.
+    %% If there were no [opts], \l__anim_step_opts_tl is left empty.
+    \__anim_pop_opts:NN \l__anim_step_opts_tl \l__anim_seg_tl
+    %%
+    %% \group_begin: / \group_end:  — standard TeX grouping ({ ... }).
+    %% Any \tikzset inside is local and does not leak into the next step.
+    \group_begin:
+      %%
+      %% \tl_if_empty:NF  var  {code}  — run {code} only if var is NOT empty (:NF = N, False).
+      \tl_if_empty:NF \l__anim_step_opts_tl {
+        %% \exp_args:Ne  cmd  {arg}  — fully expand {arg} before passing it to cmd.
+        %% \tl_use:N \l__anim_step_opts_tl expands to the string content of the variable,
+        %% e.g. "duration=3".  Without :Ne, \tikzset would receive the unexpanded macro
+        %% name instead of the string it holds.
+        \exp_args:Ne \tikzset { /anim/.cd, \tl_use:N \l__anim_step_opts_tl }
+      }
+      %%
+      %% \tl_set:Ne  var  {expr}  — assign var to the fully-expanded value of {expr}.
+      %% Reads the current /anim/duration key (possibly just overridden by step opts)
+      %% and stores it as a plain string like "3" or "1".
+      \tl_set:Ne \l__anim_dur_tl { \pgfkeysvalueof{/anim/duration} }
+      %%
+      %% \exp_args:NNV  cmd  arg1  var  — call cmd with arg1 unchanged and var
+      %% replaced by its value (:V expansion).  Equivalent here to:
+      %%   \fp_gadd:Nn \g__anim_total_fp {"3"}   (the string "3" parsed as a number)
+      %% \fp_gadd:Nn  fp-var  {fp-expr}  — adds the expression to the fp variable.
+      \exp_args:NNV \fp_gadd:Nn \g__anim_total_fp \l__anim_dur_tl
+    \group_end:    %% step opts are rolled back; total remains (it is global \g_...)
+  }
+  %% After the loop, \g__anim_total_fp holds the sum of all step durations, e.g. 5.0.
+
+  %%
+  %% Pass 2: iterate again, this time executing each step's TikZ content.
+  %%         We maintain a timing cursor (start) that advances step by step.
+  %%
+  \fp_gzero:N \g__anim_step_start_fp   %% cursor starts at t = 0.0
+  \seq_map_inline:Nn \l__anim_steps_seq {
+    \tl_set:Nn \l__anim_seg_tl { ##1 }
+    \__anim_pop_opts:NN \l__anim_step_opts_tl \l__anim_seg_tl
+    \group_begin:
+      \tl_if_empty:NF \l__anim_step_opts_tl {
+        \exp_args:Ne \tikzset { /anim/.cd, \tl_use:N \l__anim_step_opts_tl }
+      }
+      \tl_set:Ne \l__anim_dur_tl { \pgfkeysvalueof{/anim/duration} }
+      %%
+      %% Store the step duration as an FP variable so we can use it in an FP expression.
+      %% (:NNV passes the value of \l__anim_dur_tl, e.g. the string "3", to \fp_gset:Nn.)
+      \exp_args:NNV \fp_gset:Nn \g__anim_step_dur_fp \l__anim_dur_tl
+      %%
+      %% \fp_gset:Nn  fp-var  {fp-expr}  — evaluate an FP expression and store the result.
+      %% FP variables (prefixed \g__ or \l__) are referenced directly in expressions.
+      %% e.g. if start=2.0 and dur=3.0, this sets end=5.0.
+      \fp_gset:Nn \g__anim_step_end_fp
+        { \g__anim_step_start_fp + \g__anim_step_dur_fp }
+      %%
+      %% \tl_use:N  var  — expand and execute the token list.
+      %% This is where the TikZ code (\reveal{...} etc.) actually runs.
+      %% At this point the three timing globals hold the correct values for this step,
+      %% so every \reveal inside will emit keyframes for the right time window.
+      \tl_use:N \l__anim_seg_tl
+      %%
+      %% \fp_gset_eq:NN  a  b  — set a = b  (both are FP variables).
+      %% Advance the cursor: next step starts where this one ended.
+      %% This is global, so it survives the upcoming \group_end:.
+      \fp_gset_eq:NN \g__anim_step_start_fp \g__anim_step_end_fp
+    \group_end:
+  }
+} { }
+
+\ExplSyntaxOff

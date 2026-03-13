@@ -1,0 +1,41 @@
+\documentclass{standalone}
+\usepackage{svg-animate}
+
+\begin{document}
+\begin{tikzpicture}
+
+  \tikzset{/anim/duration=1.5}
+
+  %% Housing (static — always visible)
+  \fill[black!80, rounded corners=8pt]  (-1.4, -4.0) rectangle (1.4, 4.0);
+  \fill[black!50, rounded corners=6pt]  (-1.2, -3.8) rectangle (1.2, 3.8);
+
+  %% Lens covers (static dark glass behind each bulb)
+  \foreach \y in {2.2, 0, -2.2} {
+    \fill[black!60] (0, \y) circle[radius=0.95];
+  }
+
+  %% The three lights, one per animation step.
+  %% When inactive, opacity=0.08 simulates an unlit bulb seen through dark glass.
+  \begin{animate}[inactive opacity=0.08]
+
+    %% Step 1 -- green (1.5 s)
+    \reveal{\fill[green!65!black]  (0, -2.2) circle[radius=0.85];}
+
+    \animstep[duration=0.5]
+    %% Step 2 -- green+amber transition (0.5 s)
+    \reveal{\fill[green!65!black]  (0, -2.2) circle[radius=0.85];}
+    \reveal{\fill[orange!90!black] (0,  0.0) circle[radius=0.85];}
+
+    \animstep[duration=1.0]
+    %% Step 3 -- amber (1.0 s)
+    \reveal{\fill[orange!90!black] (0,  0.0) circle[radius=0.85];}
+
+    \animstep
+    %% Step 4 -- red (1.5 s)
+    \reveal{\fill[red!85!black]    (0,  2.2) circle[radius=0.85];}
+
+  \end{animate}
+
+\end{tikzpicture}
+\end{document}

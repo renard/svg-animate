@@ -1,0 +1,265 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{tcolorbox}
+\tcbuselibrary{documentation, listings, breakable, skins}
+%% tcolorbox documentation library does not define \env; use \texttt formatting.
+\newcommand{\env}[1]{\texttt{#1}}
+
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = blue!50!black,
+  urlcolor   = blue!70!black,
+}
+
+%% Load the package itself (in xelatex/pdflatex mode: animations are defined
+%% but no SVG keyframes are emitted --- useful for static PDF examples)
+\usepackage{svg-animate}
+
+%% ── tcolorbox documentation style ────────────────────────────────────────────
+\tcbset{
+  color command    = blue!60!black,
+  color environment= green!40!black,
+  color option     = orange!70!black,
+  before doc body  = {\smallskip},
+  doc marginnote   = {font=\footnotesize\ttfamily},
+}
+
+\lstset{
+  language     = [LaTeX]TeX,
+  basicstyle   = \small\ttfamily,
+  keywordstyle = \color{blue!60!black},
+  commentstyle = \color{black!50}\itshape,
+  columns      = flexible,
+  keepspaces   = true,
+}
+
+%% ── Title ─────────────────────────────────────────────────────────────────────
+\title{%
+  \texttt{svg-animate}\\[0.5ex]
+  \large Animated SVG diagrams with Ti\textit{k}Z
+}
+\author{Sébastien Gross}
+\date{2026 --- v1.0}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\bigskip
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+
+\texttt{svg-animate} is a small LaTeX package for producing \textbf{animated
+SVG diagrams} using Ti\textit{k}Z.  The animation model is deliberately simple:
+content is organised into discrete \emph{steps}, and only one step is fully
+visible at a time --- exactly like a cinema film or a slide presentation.
+
+The package wraps the low-level
+\href{https://tikz.dev/library-animations}{\texttt{tikz animations}} library
+(available since PGF~3.1.9) with a convenient high-level interface that handles
+step counting, absolute timing, and option cascading automatically.
+
+\medskip
+\textbf{Output formats:}
+\begin{itemize}
+  \item \textbf{Animated SVG} --- compile with \texttt{latex} + \texttt{dvisvgm}.
+        The animation uses SMIL opacity keyframes supported by all major browsers.
+  \item \textbf{Static PDF} --- compile with \texttt{xelatex} or \texttt{pdflatex}.
+        Animation keyframes are ignored; all animated elements are drawn at full
+        opacity simultaneously.
+\end{itemize}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Compilation pipeline}
+
+\begin{dispListing}
+# Compile to animated SVG
+latex      diagram.tex
+latex      diagram.tex          # second pass for stable layout
+dvisvgm --font-format=woff2 \
+        --optimize=all      \
+        --bbox=min          \
+        diagram.dvi -o diagram.svg
+
+# Compile to static PDF (for preview)
+xelatex diagram.tex
+\end{dispListing}
+
+The package detects the output mode via \texttt{\textbackslash pdfoutput}
+(defined by pdfTeX and LuaTeX):
+\begin{itemize}
+  \item \texttt{\textbackslash pdfoutput = 0} (\textbf{\texttt{latex}} in DVI
+        mode) --- loads the \texttt{dvisvgm} PGF driver and passes
+        \texttt{dvisvgm} to \texttt{graphicx}.
+  \item \texttt{\textbackslash pdfoutput = 1} (\textbf{\texttt{pdflatex}},
+        \textbf{\texttt{lualatex}}) --- default PDF drivers; no action needed.
+  \item \texttt{\textbackslash pdfoutput} undefined (\textbf{\texttt{xelatex}})
+        --- default XeTeX drivers; no action needed.
+\end{itemize}
+
+A minimal document looks like:
+\begin{dispListing}
+\documentclass{standalone}
+\usepackage{svg-animate}
+
+\begin{document}
+\begin{tikzpicture}
+  % ... your diagram ...
+\end{tikzpicture}
+\end{document}
+\end{dispListing}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Animation}
+
+\subsection{Overview}
+
+All animation content is placed inside an \env{animate} environment.  The body
+is divided into \emph{steps} by \cs{animstep} separators.  Each \cs{reveal}
+call wraps a TikZ element and controls its opacity: the element is active (fully
+visible) during its step and inactive (hidden or dimmed) during all other steps.
+
+\begin{dispListing}
+\begin{animate}[duration=1]
+  \reveal[inactive opacity=0.2]{\node (A) at (0,0) {Step 1};}
+  \animstep
+  \reveal{\node (B) at (0,0) {Step 2};}
+  \animstep[duration=2]
+  \reveal{\node (C) at (0,0) {Step 3 (lasts 2 s)};}
+\end{animate}
+\end{dispListing}
+
+Options cascade from the environment down through each step to individual
+elements: inner options override outer ones.
+
+\begin{center}
+\begin{tcolorbox}[width=0.8\linewidth, colback=gray!5, colframe=gray!40,
+                  fontupper=\small\ttfamily]
+\texttt{\textbackslash begin\{animate\}[duration=1, inactive opacity=0]}\\
+\quad\texttt{\textbackslash animstep[inactive opacity=0.3]}\\
+\quad\quad\texttt{\textbackslash reveal[active opacity=0.8]\{...\}}\\
+\texttt{\textbackslash end\{animate\}}
+\end{tcolorbox}
+\end{center}
+
+\subsection{Environment}
+
+\begin{docEnvironment}{animate}{\oarg{options}}
+  Collects all content up to \cs{end}\texttt{\{animate\}} and processes it
+  in two passes: first to sum all step durations (without executing any TikZ
+  code), then to render each step with correct absolute timing.
+
+  \oarg{options} accepts any \texttt{/anim/.cd} key and applies them as
+  defaults for all steps in this environment.
+\end{docEnvironment}
+
+\subsection{Commands}
+
+\begin{docCommand}{reveal}{\oarg{options}\marg{content}}
+  Wraps \meta{content} in an opacity animation.  The element is shown at
+  \docValue{active opacity} during its step and at \docValue{inactive opacity}
+  at all other times.
+
+  Set \texttt{inactive opacity} to a value above~0 to \emph{dim} the element
+  instead of hiding it --- useful for nodes that should remain faintly visible
+  in the background.
+
+  \texttt{duration} in \oarg{options} is accepted but silently ignored (it has
+  no meaning at the per-element level).
+\end{docCommand}
+
+\begin{docCommand}{animstep}{\oarg{options}}
+  Step separator inside \env{animate}.  The token is never executed; it
+  is consumed as a delimiter when the body is split into per-step segments.
+
+  \oarg{options} accepts any \texttt{/anim/.cd} key and applies them to
+  all elements of the \emph{following} step, overriding environment-level
+  defaults.
+\end{docCommand}
+
+\subsection{Keys}
+
+All keys live under the \texttt{/anim/.cd} path and can be set at any level
+of the cascade.
+
+\begin{docKey}[anim]{duration}{=\meta{seconds}}{initial: \texttt{2}}
+  Duration of this step in seconds.  Can be set globally, per-environment,
+  or per-step via \cs{animstep}\oarg{duration=\meta{N}}.  Has no effect when
+  passed to \cs{reveal} (silently ignored).
+\end{docKey}
+
+\begin{docKey}[anim]{active opacity}{=\meta{value}}{initial: \texttt{1}}
+  Opacity of a \cs{reveal} element while its step is active.
+  \texttt{1}~= fully opaque (default), \texttt{0}~= fully transparent.
+\end{docKey}
+
+\begin{docKey}[anim]{inactive opacity}{=\meta{value}}{initial: \texttt{0}}
+  Opacity of a \cs{reveal} element while its step is \emph{inactive}.
+  \texttt{0}~= fully hidden (default).  Set to a small positive value (e.g.\
+  \texttt{0.15}) to keep elements faintly visible rather than completely
+  disappearing.
+\end{docKey}
+
+\subsection{Low-level environment}
+
+\begin{docEnvironment}{animframe}{\marg{start}\marg{end}\marg{total}}
+  Low-level building block.  Makes its content visible only during the time
+  window [\meta{start}, \meta{end}] (in seconds) out of a total animation
+  of \meta{total} seconds.  Opacity snaps instantaneously at each boundary
+  (epsilon trick).
+
+  Used internally by \cs{reveal}; also available for advanced use cases where
+  you compute time windows yourself.
+
+\begin{dispListing}
+\begin{animframe}{0}{1.5}{3.5}
+  \fill[red] (0,0) circle[radius=1];
+\end{animframe}
+\end{dispListing}
+\end{docEnvironment}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Example: traffic light}
+
+The diagram animates a traffic light through four steps.  The housing and lens
+covers are static (always visible at full opacity).  The lights are revealed
+one at a time via \cs{reveal}; when inactive their opacity drops to
+\texttt{0.08}, simulating an unlit bulb seen through dark glass.
+
+The sequence demonstrates two features: per-step duration (step~2 lasts only
+\texttt{0.5~s}) and multiple \cs{reveal} calls in a single step (step~2 shows
+green and amber simultaneously as a transition):
+
+\medskip
+\begin{tabular}{clll}
+  \textbf{Step} & \textbf{Lights} & \textbf{Duration} & \textbf{Meaning} \\
+  \hline
+  1 & green          & 1.5\,s & go \\
+  2 & green + amber  & 0.5\,s & prepare to stop \\
+  3 & amber          & 1.0\,s & caution \\
+  4 & red            & 1.5\,s & stop \\
+\end{tabular}
+\medskip
+
+The box below shows the complete \texttt{example.tex} source on the left and
+the compiled PDF on the right.  In PDF mode all animated elements are drawn
+at full opacity simultaneously (no keyframes); open \texttt{example.svg} in
+a browser for the actual animation.
+
+\tcbinputlisting{
+  listing file    = {example.tex},
+  comment         = {\centering\includegraphics[width=\linewidth]{example.pdf}},
+  listing side comment,
+  righthand width = 3.2cm,
+  sidebyside gap  = 4mm,
+  colback         = gray!5,
+  colframe        = gray!40,
+  fontupper       = \small,
+}
+
+\end{document}

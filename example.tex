@@ -15,9 +15,13 @@
     \fill[black!60] (0, \y) circle[radius=0.95];
   }
 
+
   %% The three lights, one per animation step.
   %% When inactive, opacity=0.08 simulates an unlit bulb seen through dark glass.
   \begin{animate}[inactive opacity=0.08]
+    %% Static PDF fallback: show only the red light (one clean frame).
+    %% Ignored in SVG mode; in PDF mode \reveal draws nothing so only this appears.
+    \noanimate{\fill[red!85!black] (0, 2.2) circle[radius=0.85];}
 
     %% Step 1 -- green (1.5 s)
     \reveal{\fill[green!65!black]  (0, -2.2) circle[radius=0.85];}

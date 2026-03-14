@@ -50,6 +50,20 @@ its own step; the amber light uses a shorter `duration`.
 > Open `example.svg` directly in a browser to see the animation.
 > GitHub's Markdown renderer may display it as a static image.
 
+## Static PDF output
+
+In PDF mode (`xelatex`, `pdflatex`) the package detects the output format and
+adapts automatically:
+
+- **No `\noanimate`** — `\reveal` elements are drawn at full opacity
+  simultaneously (all steps stacked), which is useful for a quick overview.
+- **`\noanimate{content}` present** — `\reveal` elements are suppressed and
+  only the `\noanimate` content is drawn, giving a single clean static frame.
+- **`\reveal[noanimate]{content}`** — forces this specific element to render
+  in PDF even when `\noanimate` is active in the same environment.
+
+`\noanimate` is completely ignored in SVG mode.
+
 ## Key interface
 
 | Level | Syntax | Scope |
@@ -58,6 +72,7 @@ its own step; the amber light uses a shorter `duration`.
 | Environment | `\begin{animate}[duration=1, inactive opacity=0]` | this environment |
 | Step | `\animstep[duration=0.5]` | following step |
 | Element | `\reveal[inactive opacity=0.2]{...}` | this element |
+| Static fallback | `\noanimate{...}` | PDF only, SVG ignored |
 
 ### `/anim/.cd` keys
 
@@ -66,6 +81,7 @@ its own step; the amber light uses a shorter `duration`.
 | `duration` | `2` | seconds per step |
 | `active opacity` | `1` | opacity when step is active |
 | `inactive opacity` | `0` | opacity when step is inactive (`0`=hidden, `>0`=dimmed) |
+| `noanimate` | — | force this `\reveal` to render in PDF even when `\noanimate` is present |
 
 ## Debugging
 

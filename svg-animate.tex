@@ -70,8 +70,8 @@ step counting, absolute timing, and option cascading automatically.
   \item \textbf{Animated SVG} --- compile with \texttt{latex} + \texttt{dvisvgm}.
         The animation uses SMIL opacity keyframes supported by all major browsers.
   \item \textbf{Static PDF} --- compile with \texttt{xelatex} or \texttt{pdflatex}.
-        Animation keyframes are ignored; all animated elements are drawn at full
-        opacity simultaneously.
+        The package detects the output mode and adapts \cs{reveal} behaviour
+        accordingly (see Section~\ref{sec:static}).
 \end{itemize}
 
 %% ─────────────────────────────────────────────────────────────────────────────
@@ -171,6 +171,36 @@ elements: inner options override outer ones.
 
   \texttt{duration} in \oarg{options} is accepted but silently ignored (it has
   no meaning at the per-element level).
+
+  \textbf{PDF mode behaviour} depends on whether \cs{noanimate} is present in
+  the enclosing \env{animate} body:
+  \begin{itemize}
+    \item No \cs{noanimate}: \meta{content} is rendered at full opacity
+          (all steps stacked --- useful for a quick overview).
+    \item \cs{noanimate} present: \meta{content} is suppressed; use the
+          \texttt{noanimate} key on \cs{reveal} to override for individual elements.
+  \end{itemize}
+\end{docCommand}
+
+\begin{docCommand}{noanimate}{\marg{content}}
+  \textbf{PDF mode:} renders \meta{content} as a plain static element, with no
+  animation wrapper.  When \cs{noanimate} is present inside an \env{animate}
+  body, all \cs{reveal} elements in that body are automatically suppressed,
+  leaving \meta{content} as the sole visible output --- a single clean frame.
+
+  \textbf{SVG mode:} completely ignored; the animated steps play normally.
+
+  \cs{noanimate} may appear anywhere inside or outside \env{animate}.  Multiple
+  calls are allowed; each one renders independently in PDF.
+
+\begin{dispListing}
+\begin{animate}[inactive opacity=0.08]
+  \noanimate{\fill[red!85!black] (0,2.2) circle[radius=0.85];}
+  \reveal{\fill[green!65!black]  (0,-2.2) circle[radius=0.85];}
+  \animstep
+  \reveal{\fill[red!85!black]   (0, 2.2) circle[radius=0.85];}
+\end{animate}
+\end{dispListing}
 \end{docCommand}
 
 \begin{docCommand}{animstep}{\oarg{options}}
@@ -204,6 +234,54 @@ of the cascade.
   \texttt{0.15}) to keep elements faintly visible rather than completely
   disappearing.
 \end{docKey}
+
+\begin{docKey}[anim]{noanimate}{(no value)}{default: not set}
+  When passed to \cs{reveal}, forces that element to render in PDF mode even
+  when \cs{noanimate} is present in the enclosing \env{animate} body.  Has no
+  effect in SVG mode.  Useful for elements that should appear in both the
+  animated SVG \emph{and} the static PDF fallback --- for example a transition
+  light that belongs to multiple steps and should also be visible in the PDF
+  snapshot.
+
+\begin{dispListing}
+\begin{animate}[inactive opacity=0.08]
+  \noanimate{\fill[red!85!black] (0,2.2) circle[radius=0.85];}
+  \reveal{\fill[green!65!black]  (0,-2.2) circle[radius=0.85];}
+  \animstep
+  %% amber is both animated and shown in the PDF static frame
+  \reveal[noanimate]{\fill[orange!90!black] (0,0.0) circle[radius=0.85];}
+\end{animate}
+\end{dispListing}
+\end{docKey}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Static PDF output}
+\label{sec:static}
+
+The package exposes the boolean flag \texttt{\textbackslash if@anim@svgmode},
+which is \texttt{true} only when compiling with \texttt{latex} in DVI mode
+(the SVG pipeline).  \cs{reveal} and \cs{noanimate} both query this flag; the
+logic is summarised below.
+
+\medskip
+\begin{center}
+\begin{tabular}{lcc}
+  \hline
+  & \textbf{SVG} & \textbf{PDF} \\
+  \hline
+  \cs{reveal}\texttt{\{...\}} (no \cs{noanimate} in body) & animated & rendered \\
+  \cs{reveal}\texttt{\{...\}} (\cs{noanimate} present)     & animated & suppressed \\
+  \cs{reveal}\texttt{[noanimate]\{...\}}                   & animated & rendered \\
+  \cs{noanimate}\texttt{\{...\}}                           & ignored  & rendered \\
+  \hline
+\end{tabular}
+\end{center}
+\medskip
+
+The \env{animate} environment scans its collected body for the token
+\cs{noanimate} before executing any TikZ code, so the suppression decision is
+made once per environment instance and does not require two separate document
+structures.
 
 \subsection{Low-level environment}
 
@@ -247,9 +325,9 @@ green and amber simultaneously as a transition):
 \medskip
 
 The box below shows the complete \texttt{example.tex} source on the left and
-the compiled PDF on the right.  In PDF mode all animated elements are drawn
-at full opacity simultaneously (no keyframes); open \texttt{example.svg} in
-a browser for the actual animation.
+the compiled PDF on the right.  The \cs{noanimate} call selects the red light
+as the static PDF frame; open \texttt{example.svg} in a browser for the full
+animation.
 
 \tcbinputlisting{
   listing file    = {example.tex},

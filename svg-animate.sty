@@ -35,6 +35,9 @@
 %% Set by the /anim/noanimate key on \reveal to force rendering in PDF mode
 %% even when \noanimate is present in the animate body.
 \newif\if@anim@reveal@static
+%% True while the animate environment's begin code is executing.
+%% Used by \animstep to detect misuse outside animate.
+\newif\if@anim@inside
 \ifdefined\pdfoutput
   \ifnum\pdfoutput=0
     \@anim@svgmodetrue
@@ -302,8 +305,19 @@
 \bool_new:N \g__anim_has_noanimate_bool
 
 %% \animstep[options] — step delimiter; [options] apply to all elements of the next step.
-%% Defined as a no-op: it is never executed, only used as a split token by animate.
-\NewDocumentCommand \animstep { } { }
+%% When inside animate its body is collected verbatim (+b) so \animstep is consumed as
+%% a split token by \seq_set_split and never actually executed — the error check below
+%% can therefore only fire when \animstep is (incorrectly) used outside animate.
+\NewDocumentCommand \animstep { } {
+  \if@anim@inside \else
+    \PackageError{svg-animate}
+      {\string\animstep\space used outside animate environment}
+      {%
+        \string\animstep\space is a step separator and only makes sense%
+        \MessageBreak inside \string\begin{animate}...\string\end{animate}.%
+      }%
+  \fi
+}
 
 %% \__anim_pop_opts:NN {#1} {#2}
 %%   Extract a leading [opts] group from token list variable #2 into #1.
@@ -368,9 +382,19 @@
 %% \noanimate{content}
 %%   PDF mode: renders content as a static element (no animation wrapper).
 %%   SVG mode: completely ignored.
-%%   Place inside or outside \begin{animate}...\end{animate} to provide a
-%%   single clean frame for static PDF output.
+%%   Must be used inside \begin{animate}...\end{animate}; using it outside
+%%   is an error because its meaning (fallback for which animation?) would
+%%   be ambiguous.
 \NewDocumentCommand \noanimate { +m } {
+  \if@anim@inside \else
+    \PackageError{svg-animate}
+      {\string\noanimate\space used outside animate environment}
+      {%
+        \string\noanimate\space provides a static PDF fallback for a specific%
+        \MessageBreak animate environment. Use it inside%
+        \MessageBreak \string\begin{animate}...\string\end{animate}.%
+      }%
+  \fi
   \if@anim@svgmode
   \else
     #1
@@ -380,6 +404,7 @@
 \NewDocumentEnvironment { animate } { O{} +b } {
   %% #1 = animate-level options (e.g. "duration=1, inactive opacity=0")
   %% #2 = full body collected verbatim by +b, not yet executed
+  \@anim@insidetrue                              %% guard: detect \animstep outside animate
   \tikzset{ /anim/.cd, #1 }                      %% apply animate-level options globally
 
   %% PDF mode: scan the body for \noanimate before executing anything.
@@ -490,7 +515,7 @@
       \fp_gset_eq:NN \g__anim_step_start_fp \g__anim_step_end_fp
     \group_end:
   }
-} { }
+} { \@anim@insidefalse }
 
 \ExplSyntaxOff
 \makeatother

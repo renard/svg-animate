@@ -190,8 +190,8 @@ elements: inner options override outer ones.
 
   \textbf{SVG mode:} completely ignored; the animated steps play normally.
 
-  \cs{noanimate} may appear anywhere inside or outside \env{animate}.  Multiple
-  calls are allowed; each one renders independently in PDF.
+  \cs{noanimate} must appear inside \env{animate}.  Multiple calls are allowed;
+  each one renders independently in PDF.
 
 \begin{dispListing}
 \begin{animate}[inactive opacity=0.08]

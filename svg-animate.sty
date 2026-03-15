@@ -83,7 +83,9 @@
 %%   Low-level environment.  Wraps its content in a TikZ scope that animates
 %%   the opacity so the content is visible only during the window [start, end].
 %%   All three arguments are absolute times in seconds.
-%%   Used internally by \reveal; also available for advanced use cases.
+%%   Available for advanced use cases.  \reveal itself now uses the higher-level
+%%   \__anim_reveal_simple:n (which builds the keyframe list in expl3 to avoid
+%%   the "doesn't match its definition" error when loop=false).
 %%
 %%   #1 = start time (s)   #2 = end time (s)   #3 = total duration (s)
 %%
@@ -117,6 +119,21 @@
   \pgfmathsetmacro\animft@starte{max(#1 - 0.001, 0)}%
   \pgfmathsetmacro\animft@ende{#2 - 0.001}%
   \pgfmathsetmacro\animft@totale{#3 - 0.001}%
+  %%
+  %% Pre-compute whether to append "repeats" BEFORE building the animation spec.
+  %% A \if...\fi conditional must NOT appear inside the animate={...} key value:
+  %% TikZ's animation spec parser reads tokens with limited expansion, and an
+  %% unexpanded \if@anim@loop token causes the "doesn't match its definition"
+  %% error when loop=false (even though loop=true accidentally works because
+  %% \iftrue expands away cleanly via TikZ's \expandafter chains).
+  %% Fix: resolve the conditional here, outside the spec, and store the result
+  %% in \animft@repeats which is a plain no-argument macro that TikZ expands
+  %% just like \animft@opA or \animft@ende.
+  \if@anim@loop
+    \def\animft@repeats{,repeats,}%
+  \else
+    \def\animft@repeats{}%
+  \fi
   %% \ifdim compares two TeX dimensions.  We append "pt" to turn the seconds
   %% value into a dimension, giving a convenient way to test whether start == 0.
   %% When start=0 we omit the initial inactive phase (it would be at t<0).
@@ -133,8 +150,7 @@
         0s = "\animft@opA",%
         \animft@ende s = "\animft@opA",%
         #2 s = "\animft@opI",%
-        \animft@totale s = "\animft@opI",%
-        \if@anim@loop repeats,\fi%
+        \animft@totale s = "\animft@opI"\animft@repeats%
       }%
     }]%
   \else%
@@ -154,8 +170,7 @@
         #1 s = "\animft@opA",%
         \animft@ende s = "\animft@opA",%
         #2 s = "\animft@opI",%
-        \animft@totale s = "\animft@opI",%
-        \if@anim@loop repeats,\fi%
+        \animft@totale s = "\animft@opI"\animft@repeats%
       }%
     }]%
   \fi%
@@ -816,8 +831,8 @@
     } { }
   }
   %% Stay inactive until end; append repeats unless loop=false.
-  \tl_put_right:Ne \l__anim_kf_tl { \animft@totale s = "\animft@opI", }
-  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { repeats, } \fi
+  \tl_put_right:Ne \l__anim_kf_tl { \animft@totale s = "\animft@opI" }
+  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { ,repeats, } \fi
 
   %% ── 4. Emit TikZ scope with assembled keyframes ───────────────────────────
   %% \__anim_emit_mf_scope:Vn expands \l__anim_kf_tl to its string value before
@@ -829,6 +844,57 @@
 %% guaranteeing the keyframe token list is fully resolved when TikZ
 %% processes the animate= key.
 \cs_generate_variant:Nn \__anim_emit_mf_scope:nn { Vn }
+
+%% \__anim_reveal_simple:n {content}
+%%   Called by \reveal when neither blink= nor step= is set.
+%%   Equivalent to the animframe environment, but builds the keyframe token list
+%%   entirely in expl3 (using \tl_set:Ne + \if@anim@loop outside the spec) before
+%%   passing it to TikZ via \__anim_emit_mf_scope:Vn.
+%%
+%%   This avoids the "doesn't match its definition" error caused by putting
+%%   \if@anim@loop or any not-fully-expanded macro inside the animate={} spec.
+%%
+\cs_new_protected:Npn \__anim_reveal_simple:n #1 {
+  %% Opacity values (wrappers defined before \ExplSyntaxOn — PITFALL A)
+  \pgfmathsetmacro\animft@opA { \@anim@get@active@opacity  }
+  \pgfmathsetmacro\animft@opI { \@anim@get@inactive@opacity }
+  %% Pre-expand FP globals to decimal strings before pgfmath sees them (PITFALL A)
+  \tl_set:Ne \l__anim_dur_tl { \fp_to_decimal:N \g__anim_total_fp }
+  \tl_set:Ne \l__anim_ws_tl  { \fp_to_decimal:N \g__anim_step_start_fp }
+  \tl_set:Ne \l__anim_we_tl  { \fp_to_decimal:N \g__anim_step_end_fp   }
+  %% Epsilon boundaries
+  \pgfmathsetmacro\animft@starte { max(\l__anim_ws_tl - 0.001, 0) }
+  \pgfmathsetmacro\animft@ende   { \l__anim_we_tl - 0.001 }
+  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - 0.001 }
+  %% Build keyframe token list — \tl_set:Ne fully expands macros, so the
+  %% resulting tl contains only literal decimal strings and punctuation.
+  %% TikZ receives a pre-resolved string with no conditionals.
+  \tl_clear:N \l__anim_kf_tl
+  \fp_compare:nNnTF { \g__anim_step_start_fp } = { 0 } {
+    %% Step starts at t=0 — active immediately.
+    \tl_set:Ne \l__anim_kf_tl {
+      0s = "\animft@opA",
+      \animft@ende s = "\animft@opA",
+      \l__anim_we_tl s = "\animft@opI",
+      \animft@totale s = "\animft@opI"
+    }
+  } {
+    %% Step starts after t=0 — inactive first.
+    \tl_set:Ne \l__anim_kf_tl {
+      0s = "\animft@opI",
+      \animft@starte s = "\animft@opI",
+      \l__anim_ws_tl s = "\animft@opA",
+      \animft@ende s = "\animft@opA",
+      \l__anim_we_tl s = "\animft@opI",
+      \animft@totale s = "\animft@opI"
+    }
+  }
+  %% Append repeats modifier outside the spec — \if@anim@loop is evaluated here
+  %% in expl3 code, not inside the TikZ animate= value (which would confuse
+  %% TikZ's animation parser and trigger "doesn't match its definition").
+  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { ,repeats, } \fi
+  \__anim_emit_mf_scope:Vn \l__anim_kf_tl { #1 }
+}
 
 %% \__anim_reveal_blink:n {content}
 %%   Called by \reveal when blink= key is set (period > 0).
@@ -914,9 +980,9 @@
   %% Snap to inactive at step end; hold until total; optionally repeat.
   \tl_put_right:Ne \l__anim_kf_tl {
     \l__anim_we_tl s = "\animft@opI",
-    \animft@totale s = "\animft@opI",
+    \animft@totale s = "\animft@opI"
   }
-  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { repeats, } \fi
+  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { ,repeats, } \fi
   %% Emit scope (PITFALL B: ':' at catcode 12 ensured by pre-ExplSyntaxOn helper)
   \__anim_emit_mf_scope:Vn \l__anim_kf_tl { #1 }
 }
@@ -956,12 +1022,7 @@
       } {
         \tl_if_empty:NTF \l__anim_step_spec_tl {
           %% No step= spec: single window from current step globals (existing behaviour).
-          \begin{animframe}
-            { \fp_to_decimal:N \g__anim_step_start_fp }            %% e.g. "1.0"
-            { \fp_to_decimal:N \g__anim_step_end_fp }              %% e.g. "2.0"
-            { \fp_to_decimal:N \g__anim_total_fp }                 %% e.g. "3.0"
-            #2
-          \end{animframe}
+          \__anim_reveal_simple:n { #2 }
         } {
           %% step= spec present: multi-window reveal.
           \__anim_reveal_multistep:n { #2 }

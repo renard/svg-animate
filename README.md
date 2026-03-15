@@ -82,6 +82,31 @@ adapts automatically:
 | `active opacity` | `1` | opacity when step is active |
 | `inactive opacity` | `0` | opacity when step is inactive (`0`=hidden, `>0`=dimmed) |
 | `noanimate` | — | force this `\reveal` to render in PDF even when `\noanimate` is present |
+| `frame=<spec>` | — | show element during specific steps (see below) |
+
+### Multi-step visibility with `frame=`
+
+By default `\reveal` makes an element visible only during the **current step**.
+The `frame=` key overrides this: the element becomes visible during every step
+in the specification, regardless of where `\reveal` is placed.
+
+```latex
+\begin{animate}[inactive opacity=0.08]
+  \reveal[frame={1,3}]{\node[red]  at (4,1) {visible in steps 1 and 3};}
+  \reveal[frame=2-4]{  \node[blue] at (4,0) {visible in steps 2 through 4};}
+  \reveal[frame={1,3-5}]{\node at (4,-1) {steps 1, 3, 4, 5};}
+\end{animate}
+```
+
+**Syntax:**
+
+- Single step — `frame=2`
+- Range — `frame=2-5` (steps 2, 3, 4, 5)
+- List — `frame={1,3}` (braces required when listing multiple values)
+- Mix — `frame={1,3-5}` (braces required)
+
+Consecutive steps in the specification are automatically merged into one
+animation window (no redundant keyframe at the shared boundary).
 
 ## Debugging
 

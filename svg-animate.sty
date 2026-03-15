@@ -158,6 +158,99 @@
 
 \makeatother
 
+%% ── PITFALL A — pgfkeys paths with internal spaces inside \ExplSyntaxOn ───────
+%%
+%% \ExplSyntaxOn changes the catcode of the space character from 10 (space)
+%% to 9 (ignored).  This is intentional: it lets expl3 code be written with
+%% generous whitespace for readability, and that whitespace is silently dropped
+%% during tokenisation rather than producing spurious space tokens.
+%%
+%% The consequence is that ANY space literal written in the SOURCE inside an
+%% \ExplSyntaxOn block is discarded at tokenisation time — before any macro
+%% expansion or execution takes place.
+%%
+%% pgfkeys stores and looks up keys by their *exact* path string, including any
+%% spaces that are part of the key name.  The keys declared in this package are:
+%%
+%%   /anim/active opacity      ← space is part of the key name
+%%   /anim/inactive opacity    ← idem
+%%
+%% Inside \ExplSyntaxOn, writing:
+%%
+%%   \pgfkeysvalueof{/anim/active opacity}
+%%
+%% causes the space between "active" and "opacity" to be catcode 9 at the
+%% moment the source is tokenised.  TeX therefore never sees a space token
+%% there; instead it reads the path string as "/anim/activeopacity" — a key
+%% that has never been declared.
+%%
+%% The failure mode is NOT obvious:
+%%   - No "undefined key" warning is emitted by pgfkeys in this context.
+%%   - The undefined key returns an empty string.
+%%   - That empty string is then passed to \pgfmathsetmacro, which tries to
+%%     evaluate it as an arithmetic expression.
+%%   - pgfmath fails internally on an empty expression, producing:
+%%       ! Undefined control sequence: \pgfmath@dimen@
+%%     which points into the depths of the pgfmath internals and gives no hint
+%%     about the real cause (a missing space in a key path).
+%%
+%% Fix: define wrapper macros HERE, outside \ExplSyntaxOn, so the space token
+%% in "/anim/active opacity" is tokenised at catcode 10 (normal) and baked
+%% permanently into the macro body.  Calling the wrapper from inside
+%% \ExplSyntaxOn is safe because TeX expands the macro body, not the source
+%% text — the space token stored in the body retains its original catcode 10.
+%%
+\makeatletter
+\def\@anim@get@active@opacity{\pgfkeysvalueof{/anim/active opacity}}
+\def\@anim@get@inactive@opacity{\pgfkeysvalueof{/anim/inactive opacity}}
+\makeatother
+
+%% ── PITFALL B — TikZ animation-spec parser requires ':' at catcode 12 ─────────
+%%
+%% \ExplSyntaxOn also changes the catcode of ':' from 12 (other) to 11 (letter).
+%% This allows ':' to appear in expl3 function names as a separator between the
+%% base name and the argument signature, e.g.  \__anim_reveal_multiframe:n.
+%%
+%% TikZ's animation library (tikzlibraryanimations.code.tex) parses the
+%% animate= key value using the following idiom to locate the ':' separator
+%% between the target entity and the attribute:
+%%
+%%   \expandafter\pgfutil@in@\expandafter:\expandafter{\tikz@key}
+%%
+%% \pgfutil@in@ performs a token-level search: it looks for a token whose
+%% *character code AND catcode* both match the searched-for token.  The ':'
+%% hardcoded in the source above has catcode 12 (it was tokenised outside any
+%% \ExplSyntaxOn block).  A ':' that was tokenised inside \ExplSyntaxOn carries
+%% catcode 11 — a different token — and is NOT found by \pgfutil@in@.
+%%
+%% Consequence: if the macro body
+%%
+%%   \begin{scope}[animate={myself : opacity = {#1}}]
+%%
+%% is tokenised inside \ExplSyntaxOn, the ':' in "myself : opacity" becomes
+%% catcode 11.  TikZ's parser then fails to find the entity:attribute boundary,
+%% the spec is not recognised, and control falls through to an error path deep
+%% inside pgfmath:
+%%
+%%   ! Undefined control sequence: \pgfmath@dimen@
+%%
+%% (same symptom as Pitfall A — completely unrelated-looking error).
+%%
+%% Fix: define this helper macro BEFORE \ExplSyntaxOn so that ':' in the macro
+%% body is tokenised at catcode 12.  The function uses an expl3-style name
+%% (__anim_emit_mf_scope:nn) which normally requires ':' to be catcode 11.
+%% We resolve this tension with \csname...\endcsname: that construct assembles
+%% a control-sequence name from arbitrary character tokens regardless of their
+%% catcodes, so we can write the name without needing ':' or '_' to be letters.
+%%
+\makeatletter
+\expandafter\protected\expandafter\def
+  \csname __anim_emit_mf_scope:nn\endcsname#1#2{%
+  \begin{scope}[animate={myself : opacity = {#1}}]%
+    #2%
+  \end{scope}%
+}%
+\makeatother
 
 %% ── High-level animate environment ───────────────────────────────────────────
 %%
@@ -252,11 +345,35 @@
 %%     \tikzset{/anim/duration=2}
 %%     \tikzset{/anim/inactive opacity=0.3}
 %%
-%% \makeatletter reinstates @ as a letter (catcode 11) so that \if@anim@svgmode
-%% and \@anim@... names are correctly tokenised inside the expl3 block below.
-%% The \makeatother earlier in this file (closing the animframe definition) had
-%% set @ to catcode 12; without this, \if@anim@svgmode would silently degrade
-%% to the primitive \if (always-false token comparison) inside \ExplSyntaxOn.
+%% ── PITFALL C — \makeatletter must precede \ExplSyntaxOn ──────────────────────
+%%
+%% \makeatletter sets '@' to catcode 11 (letter), allowing names like
+%% \if@anim@svgmode or \@anim@get@active@opacity to be used in source code.
+%% \makeatother restores '@' to catcode 12 (other).
+%%
+%% This file contains an earlier \makeatother (closing the animframe environment
+%% definition).  After that point, '@' is catcode 12.
+%%
+%% \ExplSyntaxOn does NOT touch the catcode of '@' — it only changes '_', ':',
+%% space, and '~'.  Therefore if \ExplSyntaxOn is invoked while '@' is still
+%% catcode 12, every '@' written in the expl3 block is tokenised as "other".
+%%
+%% Consequence: \if@anim@svgmode would be tokenised as:
+%%
+%%   \if   @   a   n   i   m   @   s   v   g   m   o   d   e
+%%    ^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+%%    primitive \if         twelve individual "other" tokens
+%%
+%% TeX then executes \if (the primitive token-comparison conditional) instead
+%% of the boolean flag defined with \newif.  The primitive \if compares the
+%% very next two tokens for character-code equality; those two tokens are the
+%% '@' and 'a' characters, which are different, so \if is ALWAYS false.
+%% The SVG-mode branch is silently never taken, producing no error but completely
+%% wrong behaviour.
+%%
+%% Fix: call \makeatletter immediately before \ExplSyntaxOn so '@' is catcode 11
+%% for the entire expl3 block, then call \makeatother after \ExplSyntaxOff.
+%%
 \makeatletter
 \ExplSyntaxOn
 
@@ -304,6 +421,43 @@
 %% When false: \reveal renders normally in PDF (all steps stacked, legacy behaviour).
 \bool_new:N \g__anim_has_noanimate_bool
 
+%% Per-step timing table: item N (1-based) = "start/end" decimal string.
+%% Populated during pass 1; read by \__anim_reveal_multiframe:n.
+\seq_new:N \g__anim_step_times_seq
+%% Running time cursor used during pass 1 to build \g__anim_step_times_seq.
+\fp_new:N  \g__anim_cursor_fp
+
+%% frame= spec for the current \reveal call (empty = use current step).
+%% Set by the /anim/frame key; cleared at the top of each \reveal group.
+\tl_new:N  \l__anim_frame_spec_tl
+%% The /anim/frame key must be declared here (inside \ExplSyntaxOn) so that
+%% _ and : carry expl3 catcodes when the .code value is tokenised.
+\tikzset{
+  /anim/frame/.code = { \tl_set:Nn \l__anim_frame_spec_tl { #1 } },
+}
+
+%% Generate the nVNTF variant of \regex_extract_once to allow passing the
+%% search string as a tl variable (V-expansion) rather than a literal brace group.
+\cs_generate_variant:Nn \regex_extract_once:nnNTF { nVNTF }
+
+%% \int_step_inline:nnnn loops {start}{step}{stop}{body}.
+%% The 'eeen' variant e-expands start, step, stop so \seq_item:Nn results are
+%% evaluated before the loop begins; the body is passed as-is.
+\cs_generate_variant:Nn \int_step_inline:nnnn { eeen }
+
+%% Scratch variables used by \__anim_reveal_multiframe:n.
+\seq_new:N  \l__anim_windows_seq     %% raw "start/end" windows, one per step
+\seq_new:N  \l__anim_merged_seq      %% merged windows (adjacent steps collapsed)
+\seq_new:N  \l__anim_frame_items_seq %% items split from frame spec on ","
+\seq_new:N  \l__anim_match_seq       %% regex capture groups
+\tl_new:N   \l__anim_kf_tl          %% keyframe token list being built
+\tl_new:N   \l__anim_ws_tl          %% scratch: window start time string
+\tl_new:N   \l__anim_we_tl          %% scratch: window end time string
+\tl_new:N   \l__anim_mstart_tl      %% scratch: current merged window start
+\tl_new:N   \l__anim_mend_tl        %% scratch: current merged window end
+\tl_new:N   \l__anim_next_tl        %% scratch: next window string
+\bool_new:N \l__anim_merge_bool     %% scratch: true = active merged window exists
+
 %% \animstep[options] — step delimiter; [options] apply to all elements of the next step.
 %% When inside animate its body is collected verbatim (+b) so \animstep is consumed as
 %% a split token by \seq_set_split and never actually executed — the error check below
@@ -342,6 +496,203 @@
   }
 }
 
+%% \__anim_reveal_multiframe:n {content}
+%%   Called by \reveal when the frame= key is set.
+%%   Reads \l__anim_frame_spec_tl for the step specification (e.g. "2,5-8,10"),
+%%   looks up per-step timings from \g__anim_step_times_seq, merges adjacent
+%%   windows, then emits a single TikZ scope with multi-window SMIL keyframes.
+%%
+%%   Step timings are stored as "start/end" decimal strings (e.g. "1.5/2.0").
+%%   Steps are 1-based.
+%%
+\cs_new_protected:Npn \__anim_reveal_multiframe:n #1 {
+  %% ── 1. Parse frame spec → raw windows sequence ───────────────────────────
+  %% Split "2,5-8,10" on "," into items; expand each range into individual steps;
+  %% look up each step's "start/end" timing from \g__anim_step_times_seq.
+  \seq_clear:N \l__anim_windows_seq
+  \seq_set_split:NnV \l__anim_frame_items_seq { , } \l__anim_frame_spec_tl
+  \seq_map_inline:Nn \l__anim_frame_items_seq {
+    \regex_extract_once:nnNTF
+        { \A \s* (\d+) \s* \- \s* (\d+) \s* \Z }
+        { ##1 } \l__anim_match_seq
+    {
+      %% ── PITFALL D — '#' doubling in nested inline functions ──────────────────
+      %%
+      %% In a standard LaTeX macro definition, '#1' refers to the first argument.
+      %% When one macro definition is *nested inside* another, every '#' must be
+      %% doubled to reach the intended nesting level, because TeX halves the count
+      %% of '#' characters each time it processes a definition body.
+      %%
+      %% The nesting here is three levels deep:
+      %%
+      %%   Level 0 — \cs_new_protected:Npn \__anim_reveal_multiframe:n #1 { ... }
+      %%             Parameter: #1 = TikZ content
+      %%
+      %%   Level 1 — \seq_map_inline:Nn \l__anim_frame_items_seq { ... ##1 ... }
+      %%             Inline function body; ##1 = current frame spec item (e.g. "5-8").
+      %%             TeX reduces '##' → '#' when scanning the level-0 body,
+      %%             so '##1' in the source becomes '#1' at run time.
+      %%
+      %%   Level 2 — \int_step_inline:eeen { }{ }{ }{ ... ####1 ... }
+      %%             Inline function nested inside the seq_map body.
+      %%             We need the step counter to appear as '#1' inside this body
+      %%             at run time.  Working backwards:
+      %%               - level 1 reduces '##' → '#', so we need '##1' to survive
+      %%                 level 1; that means we must write '##1' at level 1.
+      %%               - But we are *writing inside* level 0, so level 0 will also
+      %%                 halve our '#' count.  To have '##1' survive level 0 we
+      %%                 must write '####1' in the source.
+      %%             Reduction chain:  ####1  →(L0)→  ##1  →(L1)→  #1  ✓
+      %%
+      %% General rule:   N levels of inline nesting → 2^N '#' signs in source.
+      %%
+      %%   N=1: ##1   (one seq_map_inline or one int_step_inline, standalone)
+      %%   N=2: ####1 (seq_map_inline → int_step_inline, as here)
+      %%   N=3: ########1
+      %%
+      %% Using the wrong count silently produces the WRONG value with no error:
+      %% '##1' at level 2 would evaluate to the seq_map's loop variable, i.e. the
+      %% current frame spec item ("5-8"), not the numeric step counter.
+      %% \seq_item:Nn with a string index falls back to item 0 (empty), so every
+      %% step in the range would get an empty timing string and produce garbage
+      %% keyTimes in the SVG without any TeX diagnostic.
+      %%
+      %% \int_step_inline:nnnn {start}{step}{stop}{body} — four arguments.
+      %% The 'eeen' variant e-expands arguments 1, 2, 3 before starting the loop,
+      %% so \seq_item:Nn \l__anim_match_seq { 2 } is evaluated once to the integer
+      %% string (e.g. "5") rather than being re-evaluated on every iteration.
+      %% Argument 4 (the body) is not expanded — it contains '####1' which must
+      %% remain as literal parameter tokens until the loop executes.
+      %%
+      \int_step_inline:eeen
+          { \seq_item:Nn \l__anim_match_seq { 2 } }
+          { 1 }
+          { \seq_item:Nn \l__anim_match_seq { 3 } }
+          { \seq_put_right:Ne \l__anim_windows_seq
+                { \seq_item:Nn \g__anim_step_times_seq { ####1 } } }
+    } {
+      %% Single step number
+      \tl_set:Ne \l__anim_dur_tl { \tl_trim_spaces:n { ##1 } }
+      \seq_put_right:Ne \l__anim_windows_seq
+          { \seq_item:Nn \g__anim_step_times_seq { \l__anim_dur_tl } }
+    }
+  }
+
+  %% ── 2. Merge adjacent windows ─────────────────────────────────────────────
+  %% Consecutive steps share a boundary (step N end == step N+1 start).
+  %% Keeping them separate would produce conflicting keyframes at the junction,
+  %% so we merge them into a single window: [step_A_start, step_B_end].
+  \seq_clear:N \l__anim_merged_seq
+  \bool_set_false:N \l__anim_merge_bool
+  \seq_map_inline:Nn \l__anim_windows_seq {
+    \regex_extract_once:nnNTF
+        { \A ([0-9.]+) \/ ([0-9.]+) \Z }
+        { ##1 } \l__anim_match_seq
+    {
+      \tl_set:Ne \l__anim_ws_tl { \seq_item:Nn \l__anim_match_seq { 2 } }
+      \tl_set:Ne \l__anim_we_tl { \seq_item:Nn \l__anim_match_seq { 3 } }
+      \bool_if:NTF \l__anim_merge_bool {
+        \tl_if_eq:NNTF \l__anim_mend_tl \l__anim_ws_tl {
+          %% Adjacent: extend the current merged window
+          \tl_set_eq:NN \l__anim_mend_tl \l__anim_we_tl
+        } {
+          %% Gap: flush current window and start a new one
+          \seq_put_right:Ne \l__anim_merged_seq
+              { \l__anim_mstart_tl / \l__anim_mend_tl }
+          \tl_set_eq:NN \l__anim_mstart_tl \l__anim_ws_tl
+          \tl_set_eq:NN \l__anim_mend_tl   \l__anim_we_tl
+        }
+      } {
+        %% First window ever
+        \bool_set_true:N \l__anim_merge_bool
+        \tl_set_eq:NN \l__anim_mstart_tl \l__anim_ws_tl
+        \tl_set_eq:NN \l__anim_mend_tl   \l__anim_we_tl
+      }
+    } { }
+  }
+  \bool_if:NT \l__anim_merge_bool {
+    \seq_put_right:Ne \l__anim_merged_seq
+        { \l__anim_mstart_tl / \l__anim_mend_tl }
+  }
+
+  %% ── 3. Build SMIL keyframe token list ────────────────────────────────────
+  %% Opacity values and total duration (same pgfmathsetmacro idiom as animframe).
+  \pgfmathsetmacro\animft@opA    { \@anim@get@active@opacity  }
+  \pgfmathsetmacro\animft@opI    { \@anim@get@inactive@opacity }
+  %% Pre-expand \fp_to_decimal:N into a plain decimal string before pgfmath sees it,
+  %% because pgfmath cannot call expl3 functions that take arguments.
+  \tl_set:Ne \l__anim_dur_tl { \fp_to_decimal:N \g__anim_total_fp }
+  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - 0.001 }
+  \tl_clear:N \l__anim_kf_tl
+
+  %% Initial keyframe at t=0: active if first window starts at 0, else inactive.
+  \tl_set:Ne \l__anim_ws_tl {
+    \seq_item:Nn \l__anim_merged_seq { 1 }
+  }
+  \regex_extract_once:nVNTF
+      { \A ([0-9.]+) \/ }
+      \l__anim_ws_tl \l__anim_match_seq
+  {
+    \tl_set:Ne \l__anim_ws_tl { \seq_item:Nn \l__anim_match_seq { 2 } }
+    \fp_compare:nNnTF { \l__anim_ws_tl } = { 0 } {
+      \tl_put_right:Ne \l__anim_kf_tl { 0s = "\animft@opA", }
+    } {
+      \pgfmathsetmacro\animft@wse { \l__anim_ws_tl - 0.001 }
+      \tl_put_right:Ne \l__anim_kf_tl {
+        0s = "\animft@opI",
+        \animft@wse s = "\animft@opI",
+        \l__anim_ws_tl s = "\animft@opA",
+      }
+    }
+  } { }
+
+  %% Per-window end keyframes, plus inter-window transitions where needed.
+  \int_step_inline:nn { \seq_count:N \l__anim_merged_seq } {
+    \tl_set:Ne \l__anim_seg_tl { \seq_item:Nn \l__anim_merged_seq { ##1 } }
+    \regex_extract_once:nVNTF
+        { \A ([0-9.]+) \/ ([0-9.]+) \Z }
+        \l__anim_seg_tl \l__anim_match_seq
+    {
+      \tl_set:Ne \l__anim_ws_tl { \seq_item:Nn \l__anim_match_seq { 2 } }
+      \tl_set:Ne \l__anim_we_tl { \seq_item:Nn \l__anim_match_seq { 3 } }
+      \pgfmathsetmacro\animft@wee { \l__anim_we_tl - 0.001 }
+      %% Snap off at window end
+      \tl_put_right:Ne \l__anim_kf_tl {
+        \animft@wee s = "\animft@opA",
+        \l__anim_we_tl s = "\animft@opI",
+      }
+      %% Transition to next window if there is one
+      \int_compare:nNnT { ##1 } < { \seq_count:N \l__anim_merged_seq } {
+        \tl_set:Ne \l__anim_next_tl
+            { \seq_item:Nn \l__anim_merged_seq { ##1 + 1 } }
+        \regex_extract_once:nVNTF
+            { \A ([0-9.]+) \/ }
+            \l__anim_next_tl \l__anim_match_seq
+        {
+          \tl_set:Ne \l__anim_ws_tl { \seq_item:Nn \l__anim_match_seq { 2 } }
+          \pgfmathsetmacro\animft@wse { \l__anim_ws_tl - 0.001 }
+          \tl_put_right:Ne \l__anim_kf_tl {
+            \animft@wse s = "\animft@opI",
+            \l__anim_ws_tl s = "\animft@opA",
+          }
+        } { }
+      }
+    } { }
+  }
+  %% Stay inactive until animation cycle restarts
+  \tl_put_right:Ne \l__anim_kf_tl { \animft@totale s = "\animft@opI", repeats, }
+
+  %% ── 4. Emit TikZ scope with assembled keyframes ───────────────────────────
+  %% \__anim_emit_mf_scope:Vn expands \l__anim_kf_tl to its string value before
+  %% passing it to the scope, ensuring TikZ receives literal keyframe tokens.
+  \__anim_emit_mf_scope:Vn \l__anim_kf_tl { #1 }
+}
+
+%% :Vn variant: value-expands \l__anim_kf_tl before passing it as #1,
+%% guaranteeing the keyframe token list is fully resolved when TikZ
+%% processes the animate= key.
+\cs_generate_variant:Nn \__anim_emit_mf_scope:nn { Vn }
+
 %% \reveal[options]{content}
 %%   Wraps content in an opacity animation.
 %%
@@ -361,20 +712,26 @@
 \NewDocumentCommand \reveal { O{} +m } {
   \@anim@reveal@staticfalse                                         %% reset per-element flag
   \group_begin:                                                     %% isolate option scope
-    \tikzset{ /anim/.cd, #1 }                                      %% may set \@anim@reveal@statictrue
+    \tl_clear:N \l__anim_frame_spec_tl                             %% reset frame= spec
+    \tikzset{ /anim/.cd, #1 }                                      %% may set flags/frame spec
     \bool_if:NTF \g__anim_has_noanimate_bool {
       %% \noanimate present in body (PDF only — bool is always false in SVG mode).
       %% Render #2 only if this element explicitly carries the noanimate key.
       \if@anim@reveal@static #2 \fi
     } {
       %% Normal path: SVG mode (always) or PDF without \noanimate.
-      %% animframe emits SMIL keyframes in SVG; silently no-ops in PDF.
-      \begin{animframe}
-        { \fp_to_decimal:N \g__anim_step_start_fp }                %% e.g. "1.0"
-        { \fp_to_decimal:N \g__anim_step_end_fp }                  %% e.g. "2.0"
-        { \fp_to_decimal:N \g__anim_total_fp }                     %% e.g. "3.0"
-        #2                                                          %% the TikZ content
-      \end{animframe}
+      \tl_if_empty:NTF \l__anim_frame_spec_tl {
+        %% No frame= spec: single window from current step globals (existing behaviour).
+        \begin{animframe}
+          { \fp_to_decimal:N \g__anim_step_start_fp }              %% e.g. "1.0"
+          { \fp_to_decimal:N \g__anim_step_end_fp }                %% e.g. "2.0"
+          { \fp_to_decimal:N \g__anim_total_fp }                   %% e.g. "3.0"
+          #2
+        \end{animframe}
+      } {
+        %% frame= spec present: multi-window reveal.
+        \__anim_reveal_multiframe:n { #2 }
+      }
     }
   \group_end:
 }
@@ -435,6 +792,8 @@
   %%         any TikZ content.
   %%
   \fp_gzero:N \g__anim_total_fp       %% total = 0.0
+  \fp_gzero:N \g__anim_cursor_fp     %% time cursor for building step timing table
+  \seq_gclear:N \g__anim_step_times_seq  %% reset per-step timing table
   %%
   %% \seq_map_inline:Nn  seq  { body using ##1 }
   %% Loops over every item in the sequence.  Inside the body, ##1 is the
@@ -474,6 +833,15 @@
       %% replaced by its value (:V expansion).  Equivalent here to:
       %%   \fp_gadd:Nn \g__anim_total_fp {"3"}   (the string "3" parsed as a number)
       %% \fp_gadd:Nn  fp-var  {fp-expr}  — adds the expression to the fp variable.
+      %%
+      %% Store "start/end" for this step before advancing the cursor.
+      %% Item index N (1-based) in \g__anim_step_times_seq holds the timing of step N.
+      \exp_args:NNV \fp_gset:Nn \g__anim_step_dur_fp \l__anim_dur_tl
+      \seq_gput_right:Ne \g__anim_step_times_seq {
+        \fp_to_decimal:N \g__anim_cursor_fp /
+        \fp_eval:n { \g__anim_cursor_fp + \g__anim_step_dur_fp }
+      }
+      \fp_gadd:Nn \g__anim_cursor_fp { \g__anim_step_dur_fp }  %% advance cursor
       \exp_args:NNV \fp_gadd:Nn \g__anim_total_fp \l__anim_dur_tl
     \group_end:    %% step opts are rolled back; total remains (it is global \g_...)
   }

@@ -235,6 +235,33 @@ of the cascade.
   disappearing.
 \end{docKey}
 
+\begin{docKey}[anim]{frame}{=\meta{spec}}{no default}
+  By default \cs{reveal} makes an element visible only during the \emph{current}
+  step (the step in which it appears in the source).  The \texttt{frame} key
+  overrides this: the element becomes visible during every step listed in
+  \meta{spec}, regardless of its position in the source.
+
+  \medskip
+  \noindent\textbf{Syntax of \meta{spec}:}
+  \begin{itemize}
+    \item Single step — \texttt{frame=2}
+    \item Range — \texttt{frame=2-5} (steps 2, 3, 4, 5)
+    \item List — \texttt{frame=\{1,3\}} (braces required when listing multiple values)
+    \item Mix  — \texttt{frame=\{1,3-5\}} (braces required)
+  \end{itemize}
+
+  Consecutive steps in the specification are automatically merged into a single
+  animation window (no redundant keyframe at the shared boundary).
+
+\begin{dispListing}
+\begin{animate}[inactive opacity=0.08]
+  \reveal[frame={1,3}]{\node[red]  at (4,1) {visible in steps 1 and 3};}
+  \reveal[frame=2-4]{  \node[blue] at (4,0) {visible in steps 2 through 4};}
+  \reveal[frame={1,3-5}]{\node    at (4,-1) {steps 1, 3, 4, 5};}
+\end{animate}
+\end{dispListing}
+\end{docKey}
+
 \begin{docKey}[anim]{noanimate}{(no value)}{default: not set}
   When passed to \cs{reveal}, forces that element to render in PDF mode even
   when \cs{noanimate} is present in the enclosing \env{animate} body.  Has no

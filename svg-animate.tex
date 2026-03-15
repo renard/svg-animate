@@ -235,19 +235,19 @@ of the cascade.
   disappearing.
 \end{docKey}
 
-\begin{docKey}[anim]{frame}{=\meta{spec}}{no default}
+\begin{docKey}[anim]{step}{=\meta{spec}}{no default}
   By default \cs{reveal} makes an element visible only during the \emph{current}
-  step (the step in which it appears in the source).  The \texttt{frame} key
+  step (the step in which it appears in the source).  The \texttt{step} key
   overrides this: the element becomes visible during every step listed in
   \meta{spec}, regardless of its position in the source.
 
   \medskip
   \noindent\textbf{Syntax of \meta{spec}:}
   \begin{itemize}
-    \item Single step — \texttt{frame=2}
-    \item Range — \texttt{frame=2-5} (steps 2, 3, 4, 5)
-    \item List — \texttt{frame=\{1,3\}} (braces required when listing multiple values)
-    \item Mix  — \texttt{frame=\{1,3-5\}} (braces required)
+    \item Single step — \texttt{step=2}
+    \item Range — \texttt{step=2-5} (steps 2, 3, 4, 5)
+    \item List — \texttt{step=\{1,3\}} (braces required when listing multiple values)
+    \item Mix  — \texttt{step=\{1,3-5\}} (braces required)
   \end{itemize}
 
   Consecutive steps in the specification are automatically merged into a single
@@ -255,9 +255,9 @@ of the cascade.
 
 \begin{dispListing}
 \begin{animate}[inactive opacity=0.08]
-  \reveal[frame={1,3}]{\node[red]  at (4,1) {visible in steps 1 and 3};}
-  \reveal[frame=2-4]{  \node[blue] at (4,0) {visible in steps 2 through 4};}
-  \reveal[frame={1,3-5}]{\node    at (4,-1) {steps 1, 3, 4, 5};}
+  \reveal[step={1,3}]{\node[red]  at (4,1) {visible in steps 1 and 3};}
+  \reveal[step=2-4]{  \node[blue] at (4,0) {visible in steps 2 through 4};}
+  \reveal[step={1,3-5}]{\node    at (4,-1) {steps 1, 3, 4, 5};}
 \end{animate}
 \end{dispListing}
 \end{docKey}

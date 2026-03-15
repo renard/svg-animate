@@ -209,7 +209,7 @@
 %%
 %% \ExplSyntaxOn also changes the catcode of ':' from 12 (other) to 11 (letter).
 %% This allows ':' to appear in expl3 function names as a separator between the
-%% base name and the argument signature, e.g.  \__anim_reveal_multiframe:n.
+%% base name and the argument signature, e.g.  \__anim_reveal_multistep:n.
 %%
 %% TikZ's animation library (tikzlibraryanimations.code.tex) parses the
 %% animate= key value using the following idiom to locate the ':' separator
@@ -422,18 +422,18 @@
 \bool_new:N \g__anim_has_noanimate_bool
 
 %% Per-step timing table: item N (1-based) = "start/end" decimal string.
-%% Populated during pass 1; read by \__anim_reveal_multiframe:n.
+%% Populated during pass 1; read by \__anim_reveal_multistep:n.
 \seq_new:N \g__anim_step_times_seq
 %% Running time cursor used during pass 1 to build \g__anim_step_times_seq.
 \fp_new:N  \g__anim_cursor_fp
 
-%% frame= spec for the current \reveal call (empty = use current step).
-%% Set by the /anim/frame key; cleared at the top of each \reveal group.
-\tl_new:N  \l__anim_frame_spec_tl
-%% The /anim/frame key must be declared here (inside \ExplSyntaxOn) so that
+%% step= spec for the current \reveal call (empty = use current step).
+%% Set by the /anim/step key; cleared at the top of each \reveal group.
+\tl_new:N  \l__anim_step_spec_tl
+%% The /anim/step key must be declared here (inside \ExplSyntaxOn) so that
 %% _ and : carry expl3 catcodes when the .code value is tokenised.
 \tikzset{
-  /anim/frame/.code = { \tl_set:Nn \l__anim_frame_spec_tl { #1 } },
+  /anim/step/.code = { \tl_set:Nn \l__anim_step_spec_tl { #1 } },
 }
 
 %% Generate the nVNTF variant of \regex_extract_once to allow passing the
@@ -445,10 +445,10 @@
 %% evaluated before the loop begins; the body is passed as-is.
 \cs_generate_variant:Nn \int_step_inline:nnnn { eeen }
 
-%% Scratch variables used by \__anim_reveal_multiframe:n.
+%% Scratch variables used by \__anim_reveal_multistep:n.
 \seq_new:N  \l__anim_windows_seq     %% raw "start/end" windows, one per step
 \seq_new:N  \l__anim_merged_seq      %% merged windows (adjacent steps collapsed)
-\seq_new:N  \l__anim_frame_items_seq %% items split from frame spec on ","
+\seq_new:N  \l__anim_step_items_seq %% items split from frame spec on ","
 \seq_new:N  \l__anim_match_seq       %% regex capture groups
 \tl_new:N   \l__anim_kf_tl          %% keyframe token list being built
 \tl_new:N   \l__anim_ws_tl          %% scratch: window start time string
@@ -496,22 +496,22 @@
   }
 }
 
-%% \__anim_reveal_multiframe:n {content}
-%%   Called by \reveal when the frame= key is set.
-%%   Reads \l__anim_frame_spec_tl for the step specification (e.g. "2,5-8,10"),
+%% \__anim_reveal_multistep:n {content}
+%%   Called by \reveal when the step= key is set.
+%%   Reads \l__anim_step_spec_tl for the step specification (e.g. "2,5-8,10"),
 %%   looks up per-step timings from \g__anim_step_times_seq, merges adjacent
 %%   windows, then emits a single TikZ scope with multi-window SMIL keyframes.
 %%
 %%   Step timings are stored as "start/end" decimal strings (e.g. "1.5/2.0").
 %%   Steps are 1-based.
 %%
-\cs_new_protected:Npn \__anim_reveal_multiframe:n #1 {
+\cs_new_protected:Npn \__anim_reveal_multistep:n #1 {
   %% ── 1. Parse frame spec → raw windows sequence ───────────────────────────
   %% Split "2,5-8,10" on "," into items; expand each range into individual steps;
   %% look up each step's "start/end" timing from \g__anim_step_times_seq.
   \seq_clear:N \l__anim_windows_seq
-  \seq_set_split:NnV \l__anim_frame_items_seq { , } \l__anim_frame_spec_tl
-  \seq_map_inline:Nn \l__anim_frame_items_seq {
+  \seq_set_split:NnV \l__anim_step_items_seq { , } \l__anim_step_spec_tl
+  \seq_map_inline:Nn \l__anim_step_items_seq {
     \regex_extract_once:nnNTF
         { \A \s* (\d+) \s* \- \s* (\d+) \s* \Z }
         { ##1 } \l__anim_match_seq
@@ -525,11 +525,11 @@
       %%
       %% The nesting here is three levels deep:
       %%
-      %%   Level 0 — \cs_new_protected:Npn \__anim_reveal_multiframe:n #1 { ... }
+      %%   Level 0 — \cs_new_protected:Npn \__anim_reveal_multistep:n #1 { ... }
       %%             Parameter: #1 = TikZ content
       %%
-      %%   Level 1 — \seq_map_inline:Nn \l__anim_frame_items_seq { ... ##1 ... }
-      %%             Inline function body; ##1 = current frame spec item (e.g. "5-8").
+      %%   Level 1 — \seq_map_inline:Nn \l__anim_step_items_seq { ... ##1 ... }
+      %%             Inline function body; ##1 = current step spec item (e.g. "5-8").
       %%             TeX reduces '##' → '#' when scanning the level-0 body,
       %%             so '##1' in the source becomes '#1' at run time.
       %%
@@ -552,7 +552,7 @@
       %%
       %% Using the wrong count silently produces the WRONG value with no error:
       %% '##1' at level 2 would evaluate to the seq_map's loop variable, i.e. the
-      %% current frame spec item ("5-8"), not the numeric step counter.
+      %% current step spec item ("5-8"), not the numeric step counter.
       %% \seq_item:Nn with a string index falls back to item 0 (empty), so every
       %% step in the range would get an empty timing string and produce garbage
       %% keyTimes in the SVG without any TeX diagnostic.
@@ -712,16 +712,16 @@
 \NewDocumentCommand \reveal { O{} +m } {
   \@anim@reveal@staticfalse                                         %% reset per-element flag
   \group_begin:                                                     %% isolate option scope
-    \tl_clear:N \l__anim_frame_spec_tl                             %% reset frame= spec
-    \tikzset{ /anim/.cd, #1 }                                      %% may set flags/frame spec
+    \tl_clear:N \l__anim_step_spec_tl                             %% reset step= spec
+    \tikzset{ /anim/.cd, #1 }                                      %% may set flags/step spec
     \bool_if:NTF \g__anim_has_noanimate_bool {
       %% \noanimate present in body (PDF only — bool is always false in SVG mode).
       %% Render #2 only if this element explicitly carries the noanimate key.
       \if@anim@reveal@static #2 \fi
     } {
       %% Normal path: SVG mode (always) or PDF without \noanimate.
-      \tl_if_empty:NTF \l__anim_frame_spec_tl {
-        %% No frame= spec: single window from current step globals (existing behaviour).
+      \tl_if_empty:NTF \l__anim_step_spec_tl {
+        %% No step= spec: single window from current step globals (existing behaviour).
         \begin{animframe}
           { \fp_to_decimal:N \g__anim_step_start_fp }              %% e.g. "1.0"
           { \fp_to_decimal:N \g__anim_step_end_fp }                %% e.g. "2.0"
@@ -729,8 +729,8 @@
           #2
         \end{animframe}
       } {
-        %% frame= spec present: multi-window reveal.
-        \__anim_reveal_multiframe:n { #2 }
+        %% step= spec present: multi-window reveal.
+        \__anim_reveal_multistep:n { #2 }
       }
     }
   \group_end:

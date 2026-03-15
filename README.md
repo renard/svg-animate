@@ -108,12 +108,6 @@ in the specification, regardless of where `\reveal` is placed.
 Consecutive steps in the specification are automatically merged into one
 animation window (no redundant keyframe at the shared boundary).
 
-## Debugging
-
-`\grid` draws a labelled coordinate grid over the current bounding box.  Call
-it last in the `tikzpicture`.  `\pointmark{(coord)}` marks a specific point
-with a small cross.
-
 ## Requirements
 
 - PGF/TikZ ≥ 3.1.9 (for `\usetikzlibrary{animations}`)

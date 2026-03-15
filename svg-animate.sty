@@ -156,6 +156,102 @@
   \end{scope}%
 }
 
+%% ════════════════════════════════════════════════════════════════════════════════
+%% CATCODES — what they are, how they work, why they matter here
+%% ════════════════════════════════════════════════════════════════════════════════
+%%
+%% ── What is a catcode? ────────────────────────────────────────────────────────
+%%
+%% TeX reads the source file one character at a time.  Before it can interpret
+%% anything — before it knows whether '{' opens a group or '$' switches to maths
+%% — it must assign a *syntactic role* to every character it reads.  That role
+%% is the **category code** (catcode), an integer from 0 to 15.
+%%
+%% Each character has exactly one catcode at any given moment.  The full table:
+%%
+%%   0  escape        \          begins a control sequence name
+%%   1  begin-group   {          opens a TeX group
+%%   2  end-group     }          closes a TeX group
+%%   3  math-shift    $          enters/exits math mode
+%%   4  alignment     &          column separator in tabular/array/…
+%%   5  end-of-line   ↵          treated as a space (or ignored, depending on state)
+%%   6  parameter     #          introduces a macro argument: #1, #2, …
+%%   7  superscript   ^          exponent in math mode
+%%   8  subscript     _          subscript in math mode (also used by expl3)
+%%   9  ignored       (none)     character is discarded, produces no token
+%%  10  space         ⎵  \t     produces a space token (multiple → one)
+%%  11  letter        a-z A-Z   part of a control-sequence name
+%%  12  other         @ ! 1 ;…  produces a "character token", NOT part of a name
+%%  13  active        ~          the character itself IS a macro (one-token command)
+%%  14  comment       %          discards from here to end of line
+%%  15  invalid       (rare)     triggers an error if encountered
+%%
+%% ── The critical rule: control-sequence names ────────────────────────────────
+%%
+%% When TeX reads '\', it scans subsequent characters to build a name.
+%% It keeps reading as long as characters have catcode 11 (letter), and stops
+%% at the first character with any other catcode.
+%%
+%%   Source         Catcodes of a,n,i,m,…   Result
+%%   ────────────── ──────────────────────── ─────────────────────────────────────
+%%   \animstep      all 11                  one token: control sequence \animstep
+%%   \animstep{x}   all 11, then { = cc 1   \animstep + \bgroup + x + \egroup
+%%   \@anim@foo     @ = cc 12               \@ + anim + @ + foo   (FOUR tokens!)
+%%   \@anim@foo     @ = cc 11               one token: \@anim@foo ✓
+%%
+%% This is the entire reason \makeatletter exists: it changes '@' from catcode 12
+%% to 11, allowing names like \if@anim@svgmode to be single tokens.
+%% In a .sty file '@' is *always* catcode 11 (LaTeX sets it automatically before
+%% loading any package), so \makeatletter is never needed in a .sty.
+%%
+%% ── Tokenisation is final ─────────────────────────────────────────────────────
+%%
+%% TeX converts the character stream into tokens exactly ONCE, when it reads each
+%% line.  A token is a pair (character-code, catcode) and is immutable thereafter.
+%% Changing a catcode later has no effect on tokens already read.
+%%
+%% The processing pipeline is:
+%%
+%%   Source file characters
+%%         │
+%%         ▼  catcodes applied HERE — one pass, irreversible
+%%   Token stream  (each token carries its catcode permanently)
+%%         │
+%%         ▼
+%%   Macro expansion  (tokens substituted according to \def rules)
+%%         │
+%%         ▼
+%%   TeX execution   (grouping, typesetting, conditionals, …)
+%%
+%% Consequence: a \def whose body contains a space token (catcode 10) will
+%% always carry that space token when the macro expands — even if the macro
+%% is *called* inside an \ExplSyntaxOn block where spaces are catcode 9.
+%% The body was tokenised at definition time (outside \ExplSyntaxOn), so the
+%% space token is already baked in.  This is exactly the technique used by the
+%% wrapper macros \@anim@get@active@opacity below.
+%%
+%% ── What \ExplSyntaxOn changes ────────────────────────────────────────────────
+%%
+%% expl3 (the modern LaTeX programming layer) needs its own naming conventions:
+%% function names like \__anim_reveal_multistep:n embed '_' and ':' as
+%% structural separators.  To make those characters legal inside names,
+%% \ExplSyntaxOn reassigns four catcodes:
+%%
+%%   character   normal catcode   inside \ExplSyntaxOn   effect
+%%   ─────────── ──────────────── ───────────────────── ──────────────────────────
+%%   _           8  (subscript)   11 (letter)            part of a cs name
+%%   :           12 (other)       11 (letter)            part of a cs name
+%%   space       10 (space)        9 (ignored)           source whitespace ignored
+%%   ~           13 (active)      10 (space)             explicit space substitute
+%%
+%% \ExplSyntaxOn does NOT touch '@', '#', '{', '}', or any other character.
+%%
+%% The space→9 and :→11 changes are the source of the three pitfalls documented
+%% below.  Each pitfall arises because some LaTeX2e/pgf mechanism was designed
+%% assuming the *normal* catcodes for those characters.
+%%
+%% ════════════════════════════════════════════════════════════════════════════════
+%%
 %% ── PITFALL A — pgfkeys paths with internal spaces inside \ExplSyntaxOn ───────
 %%
 %% \ExplSyntaxOn changes the catcode of the space character from 10 (space)

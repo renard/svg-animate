@@ -235,6 +235,26 @@ of the cascade.
   disappearing.
 \end{docKey}
 
+\begin{docKey}[anim]{loop}{=\texttt{true}\textbar\texttt{false}}{initial: \texttt{true}}
+  Controls whether the animation repeats after reaching the last step.
+  \begin{itemize}
+    \item \texttt{true} (default) — the animation loops indefinitely.
+    \item \texttt{false} — the animation plays once and freezes on the last frame.
+  \end{itemize}
+  Can be set globally or per-environment.
+
+\begin{dispListing}
+%% One-shot animation — plays through all steps once, then stops.
+\begin{animate}[loop=false]
+  \reveal{\node {Step 1};}
+  \animstep
+  \reveal{\node {Step 2};}
+  \animstep
+  \reveal{\node {Step 3};}
+\end{animate}
+\end{dispListing}
+\end{docKey}
+
 \begin{docKey}[anim]{step}{=\meta{spec}}{no default}
   By default \cs{reveal} makes an element visible only during the \emph{current}
   step (the step in which it appears in the source).  The \texttt{step} key

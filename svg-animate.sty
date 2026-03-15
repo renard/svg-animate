@@ -38,6 +38,9 @@
 %% True while the animate environment's begin code is executing.
 %% Used by \animstep to detect misuse outside animate.
 \newif\if@anim@inside
+%% True when the animation should loop (default).
+%% Set to false via loop=false to produce a one-shot animation.
+\newif\if@anim@loop \@anim@looptrue
 \ifdefined\pdfoutput
   \ifnum\pdfoutput=0
     \@anim@svgmodetrue
@@ -68,6 +71,10 @@
   noanimate/.code            = { \@anim@reveal@statictrue },
                                %% force this \reveal to render in PDF even when
                                %% \noanimate is present in the animate body
+  loop/.is if                = @anim@loop,
+  loop/.default              = true,
+                               %% true (default): animation loops indefinitely
+                               %% false: animation plays once and freezes on the last frame
 }
 
 
@@ -120,14 +127,14 @@
     %%   t=0.999  opacity=1
     %%   t=1.000  opacity=0   <- snap off
     %%   t=2.999  opacity=0
-    %%   repeats
+    %%   repeats  (omitted when loop=false)
     \begin{scope}[animate={%
       myself : opacity = {%
         0s = "\animft@opA",%
         \animft@ende s = "\animft@opA",%
         #2 s = "\animft@opI",%
         \animft@totale s = "\animft@opI",%
-        repeats,%
+        \if@anim@loop repeats,\fi%
       }%
     }]%
   \else%
@@ -139,7 +146,7 @@
     %%   t=1.999  opacity=1
     %%   t=2.000  opacity=0   <- snap off
     %%   t=2.999  opacity=0
-    %%   repeats
+    %%   repeats  (omitted when loop=false)
     \begin{scope}[animate={%
       myself : opacity = {%
         0s = "\animft@opI",%
@@ -148,7 +155,7 @@
         \animft@ende s = "\animft@opA",%
         #2 s = "\animft@opI",%
         \animft@totale s = "\animft@opI",%
-        repeats,%
+        \if@anim@loop repeats,\fi%
       }%
     }]%
   \fi%
@@ -802,8 +809,9 @@
       }
     } { }
   }
-  %% Stay inactive until animation cycle restarts
-  \tl_put_right:Ne \l__anim_kf_tl { \animft@totale s = "\animft@opI", repeats, }
+  %% Stay inactive until end; append repeats unless loop=false.
+  \tl_put_right:Ne \l__anim_kf_tl { \animft@totale s = "\animft@opI", }
+  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { repeats, } \fi
 
   %% ── 4. Emit TikZ scope with assembled keyframes ───────────────────────────
   %% \__anim_emit_mf_scope:Vn expands \l__anim_kf_tl to its string value before

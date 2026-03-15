@@ -81,8 +81,26 @@ adapts automatically:
 | `duration` | `2` | seconds per step |
 | `active opacity` | `1` | opacity when step is active |
 | `inactive opacity` | `0` | opacity when step is inactive (`0`=hidden, `>0`=dimmed) |
+| `loop` | `true` | `false` = play once and freeze on last frame |
 | `noanimate` | — | force this `\reveal` to render in PDF even when `\noanimate` is present |
 | `step=<spec>` | — | show element during specific steps (see below) |
+
+### One-shot animation with `loop=false`
+
+By default animations loop indefinitely.  Set `loop=false` to play through
+all steps once and freeze on the last frame:
+
+```latex
+\begin{animate}[duration=1, loop=false]
+  \reveal{\node {Step 1};}
+  \animstep
+  \reveal{\node {Step 2};}
+  \animstep
+  \reveal{\node {Step 3};}
+\end{animate}
+```
+
+The global default can be changed with `\tikzset{/anim/loop=false}`.
 
 ### Multi-step visibility with `step=`
 

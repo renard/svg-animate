@@ -255,6 +255,33 @@ of the cascade.
 \end{dispListing}
 \end{docKey}
 
+\begin{docKey}[anim]{blink}{=\meta{seconds}}{no default}
+  Makes the element blink during its active step: the opacity alternates
+  between \docValue{active opacity} and \docValue{inactive opacity} at the
+  given period.  The element behaves normally (fully hidden or dimmed) during
+  all other steps.
+
+  The \meta{seconds} value is the \emph{full} blink period: the element is
+  visible for $\meta{seconds}/2$ seconds, then hidden for $\meta{seconds}/2$
+  seconds, then repeats.
+
+  If the step duration is not an exact multiple of $\meta{seconds}/2$, the
+  last partial half-period is included and cut at the step boundary.
+
+  \textbf{Note:} \texttt{blink} and \texttt{step} are mutually exclusive.
+  When both are specified, \texttt{blink} wins and \texttt{step} is ignored.
+
+\begin{dispListing}
+\begin{animate}[duration=2, inactive opacity=0.15]
+  \reveal{\node at (0,1) {Step 1 — static};}
+  \animstep
+  \reveal[blink=0.4]{\node[fill=yellow] at (0,0) {Step 2 — blinks};}
+  \animstep
+  \reveal{\node at (0,-1) {Step 3 — static};}
+\end{animate}
+\end{dispListing}
+\end{docKey}
+
 \begin{docKey}[anim]{step}{=\meta{spec}}{no default}
   By default \cs{reveal} makes an element visible only during the \emph{current}
   step (the step in which it appears in the source).  The \texttt{step} key

@@ -84,6 +84,7 @@ adapts automatically:
 | `loop` | `true` | `false` = play once and freeze on last frame |
 | `noanimate` | — | force this `\reveal` to render in PDF even when `\noanimate` is present |
 | `step=<spec>` | — | show element during specific steps (see below) |
+| `blink=<seconds>` | — | blink at given period during the active step (see below) |
 
 ### One-shot animation with `loop=false`
 
@@ -125,6 +126,28 @@ in the specification, regardless of where `\reveal` is placed.
 
 Consecutive steps in the specification are automatically merged into one
 animation window (no redundant keyframe at the shared boundary).
+
+### Blinking elements with `blink=`
+
+The `blink=` key makes an element flash on and off during its active step.
+The value is the **full blink period** in seconds: the element is visible for
+`period/2` seconds, hidden for `period/2` seconds, and repeats.
+
+```latex
+\begin{animate}[duration=2, inactive opacity=0.15]
+  \reveal{\node at (0,1) {Step 1 — static};}
+  \animstep
+  \reveal[blink=0.4]{\node[fill=yellow] at (0,0) {Step 2 — blinks};}
+  \animstep
+  \reveal{\node at (0,-1) {Step 3 — static};}
+\end{animate}
+```
+
+If the step duration is not an exact multiple of `period/2`, the last
+partial half-period is shown up to the step boundary.
+
+`blink=` and `step=` are mutually exclusive; when both are given, `blink=`
+takes priority.
 
 ## Requirements
 

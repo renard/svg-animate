@@ -521,13 +521,19 @@
 %% Running time cursor used during pass 1 to build \g__anim_step_times_seq.
 \fp_new:N  \g__anim_cursor_fp
 
+%% Blink period for the current \reveal call (0 = no blink).
+%% Set by the /anim/blink key; reset to 0 at the top of each \reveal group.
+\fp_new:N  \l__anim_blink_period_fp
+\fp_new:N  \l__anim_blink_h_fp       %% scratch: half-period = blink_period / 2
+
 %% step= spec for the current \reveal call (empty = use current step).
 %% Set by the /anim/step key; cleared at the top of each \reveal group.
 \tl_new:N  \l__anim_step_spec_tl
 %% The /anim/step key must be declared here (inside \ExplSyntaxOn) so that
 %% _ and : carry expl3 catcodes when the .code value is tokenised.
 \tikzset{
-  /anim/step/.code = { \tl_set:Nn \l__anim_step_spec_tl { #1 } },
+  /anim/step/.code  = { \tl_set:Nn \l__anim_step_spec_tl { #1 } },
+  /anim/blink/.code = { \fp_set:Nn \l__anim_blink_period_fp { #1 } },
 }
 
 %% Generate the nVNTF variant of \regex_extract_once to allow passing the
@@ -824,6 +830,97 @@
 %% processes the animate= key.
 \cs_generate_variant:Nn \__anim_emit_mf_scope:nn { Vn }
 
+%% \__anim_reveal_blink:n {content}
+%%   Called by \reveal when blink= key is set (period > 0).
+%%   The element oscillates between active opacity and inactive opacity at
+%%   the given period during its active step; it stays at inactive opacity
+%%   during all other steps.
+%%
+%%   Half-period h = blink_period / 2.
+%%   Number of half-periods: n_h = floor((e - s) / h), minimum 1.
+%%   For k = 0 .. n_h-1:
+%%     hold active opacity  when k is even (first half = visible)
+%%     hold inactive opacity when k is odd  (second half = hidden)
+%%   After the step: hold inactive opacity until the total duration.
+%%
+%%   The epsilon trick applies at each half-period boundary just as in
+%%   animframe: (t_next - ε) holds the current opacity, then t_next snaps.
+%%
+\cs_new_protected:Npn \__anim_reveal_blink:n #1 {
+  %% Opacity values (wrapper macros defined before \ExplSyntaxOn — PITFALL A)
+  \pgfmathsetmacro\animft@opA  { \@anim@get@active@opacity  }
+  \pgfmathsetmacro\animft@opI  { \@anim@get@inactive@opacity }
+  %% Total duration and epsilon-before-total
+  \tl_set:Ne \l__anim_dur_tl { \fp_to_decimal:N \g__anim_total_fp }
+  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - 0.001 }
+  %% Step bounds as decimal strings (for keyframe timestamps)
+  \tl_set:Ne \l__anim_ws_tl { \fp_to_decimal:N \g__anim_step_start_fp }  %% s
+  \tl_set:Ne \l__anim_we_tl { \fp_to_decimal:N \g__anim_step_end_fp   }  %% e
+  %% Half-period h = period / 2
+  \fp_set:Nn \l__anim_blink_h_fp { \l__anim_blink_period_fp / 2 }
+  %% n_h = floor((e - s) / h): number of complete half-periods in the step.
+  %% floor() = trunc() for positive values.  Minimum 1 so the loop runs at least once
+  %% (handles the case where the step is shorter than one full period).
+  \int_set:Nn \l_tmpa_int {
+    \fp_to_int:n { floor(
+      ( \g__anim_step_end_fp - \g__anim_step_start_fp ) / \l__anim_blink_h_fp
+    ) }
+  }
+  \int_compare:nNnT { \l_tmpa_int } < { 1 } { \int_set:Nn \l_tmpa_int { 1 } }
+  %% Build keyframe token list
+  \tl_clear:N \l__anim_kf_tl
+  %% Initial inactive phase: hold opI from 0 to (s - ε), if s > 0.
+  \fp_compare:nNnT { \g__anim_step_start_fp } > { 0 } {
+    \pgfmathsetmacro\animft@starte { \l__anim_ws_tl - 0.001 }
+    \tl_put_right:Ne \l__anim_kf_tl {
+      0s = "\animft@opI",
+      \animft@starte s = "\animft@opI",
+    }
+  }
+  %% ── PITFALL D: one level of \int_step_inline nesting inside \cs_new_protected
+  %% → ##1 in source becomes #1 in the stored definition = loop counter at runtime.
+  %%
+  %% Loop k = 0 .. n_h-1.  \int_decr:N brings \l_tmpa_int to n_h-1 as the stop value.
+  \int_decr:N \l_tmpa_int
+  \int_step_inline:eeen { 0 } { 1 } { \int_use:N \l_tmpa_int } {
+    %% t_start = s + k*h      (decimal string via FP)
+    \tl_set:Ne \l__anim_mstart_tl {
+      \fp_to_decimal:n { \g__anim_step_start_fp + ##1 * \l__anim_blink_h_fp }
+    }
+    %% t_end = min(s + (k+1)*h, e)   — caps the last half-period at the step boundary
+    \tl_set:Ne \l__anim_mend_tl {
+      \fp_to_decimal:n {
+        min( \g__anim_step_start_fp + ( ##1 + 1 ) * \l__anim_blink_h_fp ,
+             \g__anim_step_end_fp )
+      }
+    }
+    %% Epsilon before t_end
+    \pgfmathsetmacro\animft@wee { \l__anim_mend_tl - 0.001 }
+    %% Opacity for this half-period: active if k even, inactive if k odd.
+    %% \tl_set:Ne expands \animft@opA/opI to the decimal string immediately.
+    \int_if_odd:nTF { ##1 } {
+      \tl_set:Ne \l__anim_next_tl { \animft@opI }
+    } {
+      \tl_set:Ne \l__anim_next_tl { \animft@opA }
+    }
+    %% Emit hold keyframes: opacity fixed at op for the interval [t_start, t_end - ε].
+    %% The snap at t_end is handled either by the next iteration's t_start keyframe
+    %% or by the final "e s = opI" keyframe below.
+    \tl_put_right:Ne \l__anim_kf_tl {
+      \l__anim_mstart_tl s = "\l__anim_next_tl",
+      \animft@wee s = "\l__anim_next_tl",
+    }
+  }
+  %% Snap to inactive at step end; hold until total; optionally repeat.
+  \tl_put_right:Ne \l__anim_kf_tl {
+    \l__anim_we_tl s = "\animft@opI",
+    \animft@totale s = "\animft@opI",
+  }
+  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { repeats, } \fi
+  %% Emit scope (PITFALL B: ':' at catcode 12 ensured by pre-ExplSyntaxOn helper)
+  \__anim_emit_mf_scope:Vn \l__anim_kf_tl { #1 }
+}
+
 %% \reveal[options]{content}
 %%   Wraps content in an opacity animation.
 %%
@@ -844,6 +941,7 @@
   \@anim@reveal@staticfalse                                         %% reset per-element flag
   \group_begin:                                                     %% isolate option scope
     \tl_clear:N \l__anim_step_spec_tl                             %% reset step= spec
+    \fp_set:Nn \l__anim_blink_period_fp { 0 }                    %% reset blink period
     \tikzset{ /anim/.cd, #1 }                                      %% may set flags/step spec
     \bool_if:NTF \g__anim_has_noanimate_bool {
       %% \noanimate present in body (PDF only — bool is always false in SVG mode).
@@ -851,17 +949,23 @@
       \if@anim@reveal@static #2 \fi
     } {
       %% Normal path: SVG mode (always) or PDF without \noanimate.
-      \tl_if_empty:NTF \l__anim_step_spec_tl {
-        %% No step= spec: single window from current step globals (existing behaviour).
-        \begin{animframe}
-          { \fp_to_decimal:N \g__anim_step_start_fp }              %% e.g. "1.0"
-          { \fp_to_decimal:N \g__anim_step_end_fp }                %% e.g. "2.0"
-          { \fp_to_decimal:N \g__anim_total_fp }                   %% e.g. "3.0"
-          #2
-        \end{animframe}
+      \fp_compare:nNnTF { \l__anim_blink_period_fp } > { 0 } {
+        %% blink= set: oscillate during the current step.
+        %% (step= is ignored when blink= is also present)
+        \__anim_reveal_blink:n { #2 }
       } {
-        %% step= spec present: multi-window reveal.
-        \__anim_reveal_multistep:n { #2 }
+        \tl_if_empty:NTF \l__anim_step_spec_tl {
+          %% No step= spec: single window from current step globals (existing behaviour).
+          \begin{animframe}
+            { \fp_to_decimal:N \g__anim_step_start_fp }            %% e.g. "1.0"
+            { \fp_to_decimal:N \g__anim_step_end_fp }              %% e.g. "2.0"
+            { \fp_to_decimal:N \g__anim_total_fp }                 %% e.g. "3.0"
+            #2
+          \end{animframe}
+        } {
+          %% step= spec present: multi-window reveal.
+          \__anim_reveal_multistep:n { #2 }
+        }
       }
     }
   \group_end:

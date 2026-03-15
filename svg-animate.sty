@@ -651,6 +651,28 @@
       %% Argument 4 (the body) is not expanded — it contains '####1' which must
       %% remain as literal parameter tokens until the loop executes.
       %%
+      %% Validate range bounds before looping.
+      %% \l_tmpa_int = range start (A),  \l_tmpb_int = range end (B).
+      %% All three error conditions are checked independently so the user
+      %% sees every problem in a single compilation pass.
+      \int_set:Nn \l_tmpa_int { \seq_item:Nn \l__anim_match_seq { 2 } }
+      \int_set:Nn \l_tmpb_int { \seq_item:Nn \l__anim_match_seq { 3 } }
+      \int_compare:nNnT { \l_tmpa_int } > { \l_tmpb_int } {
+        \PackageError{svg-animate}
+          {step=~range~(\int_use:N\l_tmpa_int-\int_use:N\l_tmpb_int)~is~invalid:~start~must~be~<=~end}
+          {The~start~of~a~range~must~be~<=~its~end.}
+      }
+      \int_compare:nNnT { \l_tmpa_int } < { 1 } {
+        \PackageError{svg-animate}
+          {step=~range~start~(\int_use:N\l_tmpa_int)~is~out~of~range~(steps~start~at~1)}
+          {The~step=~key~accepts~positive~integers~only.}
+      }
+      \int_compare:nNnT { \l_tmpb_int } > { \seq_count:N \g__anim_step_times_seq } {
+        \PackageError{svg-animate}
+          {step=~range~end~(\int_use:N\l_tmpb_int)~exceeds~the~number~of~steps~(\seq_count:N\g__anim_step_times_seq)}
+          {This~animate~environment~has~\seq_count:N\g__anim_step_times_seq~
+           step(s),~numbered~1~to~\seq_count:N\g__anim_step_times_seq.}
+      }
       \int_step_inline:eeen
           { \seq_item:Nn \l__anim_match_seq { 2 } }
           { 1 }
@@ -658,10 +680,24 @@
           { \seq_put_right:Ne \l__anim_windows_seq
                 { \seq_item:Nn \g__anim_step_times_seq { ####1 } } }
     } {
-      %% Single step number
+      %% Single step: validate then look up timing.
+      %% \l_tmpa_int holds the step number for use in error messages.
       \tl_set:Ne \l__anim_dur_tl { \tl_trim_spaces:n { ##1 } }
-      \seq_put_right:Ne \l__anim_windows_seq
-          { \seq_item:Nn \g__anim_step_times_seq { \l__anim_dur_tl } }
+      \int_set:Nn \l_tmpa_int { \l__anim_dur_tl }
+      \int_compare:nNnT { \l_tmpa_int } < { 1 } {
+        \PackageError{svg-animate}
+          {step=~value~(\int_use:N\l_tmpa_int)~is~out~of~range~(steps~start~at~1)}
+          {The~step=~key~accepts~positive~integers~only.}
+      }
+      \int_compare:nNnTF { \l_tmpa_int } > { \seq_count:N \g__anim_step_times_seq } {
+        \PackageError{svg-animate}
+          {step=~value~(\int_use:N\l_tmpa_int)~exceeds~the~number~of~steps~(\seq_count:N\g__anim_step_times_seq)}
+          {This~animate~environment~has~\seq_count:N\g__anim_step_times_seq~
+           step(s),~numbered~1~to~\seq_count:N\g__anim_step_times_seq.}
+      } {
+        \seq_put_right:Ne \l__anim_windows_seq
+            { \seq_item:Nn \g__anim_step_times_seq { \l__anim_dur_tl } }
+      }
     }
   }
 

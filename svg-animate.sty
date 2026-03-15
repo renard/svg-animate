@@ -70,7 +70,6 @@
                                %% \noanimate is present in the animate body
 }
 
-\makeatletter
 
 %% animframe{start}{end}{total}
 %%
@@ -99,8 +98,9 @@
 %%
 %%   \pgfmathsetmacro  \macro  {expr}  evaluates {expr} with PGF's math engine
 %%   and stores the result as a plain decimal string in \macro.
-%%   The @-sign in \animframe@opA etc. is a naming convention for private macros
-%%   (\makeatletter / \makeatother make @ a valid letter for this purpose).
+%%   The @-sign in \animframe@opA etc. is a naming convention for private macros.
+%%   In a .sty file '@' is always catcode 11 (letter), so these names are valid
+%%   throughout without any \makeatletter / \makeatother.
 %%
 \newenvironment{animframe}[3]{%
   \pgfmathsetmacro\animft@opA{\pgfkeysvalueof{/anim/active opacity}}%    e.g. 1
@@ -156,8 +156,6 @@
   \end{scope}%
 }
 
-\makeatother
-
 %% ── PITFALL A — pgfkeys paths with internal spaces inside \ExplSyntaxOn ───────
 %%
 %% \ExplSyntaxOn changes the catcode of the space character from 10 (space)
@@ -200,10 +198,8 @@
 %% \ExplSyntaxOn is safe because TeX expands the macro body, not the source
 %% text — the space token stored in the body retains its original catcode 10.
 %%
-\makeatletter
 \def\@anim@get@active@opacity{\pgfkeysvalueof{/anim/active opacity}}
 \def\@anim@get@inactive@opacity{\pgfkeysvalueof{/anim/inactive opacity}}
-\makeatother
 
 %% ── PITFALL B — TikZ animation-spec parser requires ':' at catcode 12 ─────────
 %%
@@ -243,14 +239,12 @@
 %% a control-sequence name from arbitrary character tokens regardless of their
 %% catcodes, so we can write the name without needing ':' or '_' to be letters.
 %%
-\makeatletter
 \expandafter\protected\expandafter\def
   \csname __anim_emit_mf_scope:nn\endcsname#1#2{%
   \begin{scope}[animate={myself : opacity = {#1}}]%
     #2%
   \end{scope}%
 }%
-\makeatother
 
 %% ── High-level animate environment ───────────────────────────────────────────
 %%
@@ -345,36 +339,33 @@
 %%     \tikzset{/anim/duration=2}
 %%     \tikzset{/anim/inactive opacity=0.3}
 %%
-%% ── PITFALL C — \makeatletter must precede \ExplSyntaxOn ──────────────────────
+%% ── PITFALL C — \ExplSyntaxOn does NOT change the catcode of '@' ──────────────
 %%
-%% \makeatletter sets '@' to catcode 11 (letter), allowing names like
-%% \if@anim@svgmode or \@anim@get@active@opacity to be used in source code.
-%% \makeatother restores '@' to catcode 12 (other).
+%% \ExplSyntaxOn modifies exactly four catcodes: '_' (11), ':' (11),
+%% space (9), '~' (10).  It deliberately leaves '@' unchanged.
 %%
-%% This file contains an earlier \makeatother (closing the animframe environment
-%% definition).  After that point, '@' is catcode 12.
+%% In a .sty file this is a non-issue: LaTeX sets '@' to catcode 11
+%% (letter) before loading any package and restores it afterwards.
+%% So '@' is always catcode 11 throughout a .sty file, even inside
+%% \ExplSyntaxOn, with no \makeatletter needed.
 %%
-%% \ExplSyntaxOn does NOT touch the catcode of '@' — it only changes '_', ':',
-%% space, and '~'.  Therefore if \ExplSyntaxOn is invoked while '@' is still
-%% catcode 12, every '@' written in the expl3 block is tokenised as "other".
+%% In a .tex document the situation is different: '@' is normally
+%% catcode 12 (other) outside \makeatletter...\makeatother blocks.
+%% If a user writes \ExplSyntaxOn directly in a .tex file without a
+%% preceding \makeatletter, '@' stays catcode 12.  Then:
 %%
-%% Consequence: \if@anim@svgmode would be tokenised as:
+%%   \if@anim@svgmode  →  \if  @  a  n  i  m  @  s  v  g  m  o  d  e
+%%                         ^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+%%                         \if primitive    individual "other" tokens
 %%
-%%   \if   @   a   n   i   m   @   s   v   g   m   o   d   e
-%%    ^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-%%    primitive \if         twelve individual "other" tokens
+%% TeX executes \if (primitive token comparison) instead of the boolean
+%% flag set by \newif.  The two tokens compared are '@' (catcode 12) and
+%% 'a' (catcode 11) — different, so \if is ALWAYS false.  SVG mode is
+%% silently disabled with no error.
 %%
-%% TeX then executes \if (the primitive token-comparison conditional) instead
-%% of the boolean flag defined with \newif.  The primitive \if compares the
-%% very next two tokens for character-code equality; those two tokens are the
-%% '@' and 'a' characters, which are different, so \if is ALWAYS false.
-%% The SVG-mode branch is silently never taken, producing no error but completely
-%% wrong behaviour.
+%% This pitfall does not affect this package (we are in a .sty), but it
+%% would affect any .tex file that mixes \ExplSyntaxOn with @-names.
 %%
-%% Fix: call \makeatletter immediately before \ExplSyntaxOn so '@' is catcode 11
-%% for the entire expl3 block, then call \makeatother after \ExplSyntaxOff.
-%%
-\makeatletter
 \ExplSyntaxOn
 
 %% ── expl3 naming conventions ─────────────────────────────────────────────────
@@ -886,4 +877,3 @@
 } { \@anim@insidefalse }
 
 \ExplSyntaxOff
-\makeatother

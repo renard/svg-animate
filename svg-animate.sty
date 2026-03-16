@@ -77,6 +77,38 @@
                                %% false: animation plays once and freezes on the last frame
 }
 
+%% ── Epsilon for instantaneous opacity snaps ──────────────────────────────────
+%%
+%% SVG SMIL interpolates linearly between consecutive keyframes.  To produce
+%% an instantaneous jump (no cross-fade between steps), each transition is
+%% represented as two keyframes separated by a very short interval:
+%%
+%%   (t - ε) s = "old_value"
+%%   t s        = "new_value"
+%%
+%% Without this gap, setting two keyframes at exactly the same time leaves the
+%% transition behaviour implementation-defined: some SVG engines treat it as
+%% instantaneous, others as undefined.  The explicit ε makes the intent clear
+%% and consistent across renderers.
+%%
+%% Why 0.001 s (1 ms)?
+%%
+%%   • Perceptually invisible: at 60 fps one frame lasts ≈ 16.7 ms, so 1 ms is
+%%     well below the threshold of visibility even on high-refresh displays.
+%%   • Numerically safe: even for long animations (e.g. total = 3600 s) the
+%%     normalised keyTime  (3600 − 0.001) / 3600 ≈ 0.999 999 7  is distinct
+%%     from 1.0 in double precision, so keyframes never collapse.
+%%   • Practical lower bound: values much smaller than 1 ms (e.g. 1 μs) could
+%%     be rounded away by some SVG renderers working in millisecond precision.
+%%
+%% Known limit: if a step duration is ≤ ε (e.g. duration=0.001) the epsilon
+%% boundary equals or exceeds the step end, producing degenerate keyframes.
+%% Such durations are not meaningful in practice.
+%%
+%% \anim@eps is a plain macro (expanded by \pgfmathsetmacro before evaluation).
+%%
+\def\anim@eps{0.001}
+
 %% ════════════════════════════════════════════════════════════════════════════════
 %% CATCODES — what they are, how they work, why they matter here
 %% ════════════════════════════════════════════════════════════════════════════════
@@ -672,7 +704,7 @@
   %% Pre-expand \fp_to_decimal:N into a plain decimal string before pgfmath sees it,
   %% because pgfmath cannot call expl3 functions that take arguments.
   \tl_set:Ne \l__anim_dur_tl { \fp_to_decimal:N \g__anim_total_fp }
-  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - 0.001 }
+  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - \anim@eps }
   \tl_clear:N \l__anim_kf_tl
 
   %% Initial keyframe at t=0: active if first window starts at 0, else inactive.
@@ -687,7 +719,7 @@
     \fp_compare:nNnTF { \l__anim_ws_tl } = { 0 } {
       \tl_put_right:Ne \l__anim_kf_tl { 0s = "\animft@opA", }
     } {
-      \pgfmathsetmacro\animft@wse { \l__anim_ws_tl - 0.001 }
+      \pgfmathsetmacro\animft@wse { \l__anim_ws_tl - \anim@eps }
       \tl_put_right:Ne \l__anim_kf_tl {
         0s = "\animft@opI",
         \animft@wse s = "\animft@opI",
@@ -705,7 +737,7 @@
     {
       \tl_set:Ne \l__anim_ws_tl { \seq_item:Nn \l__anim_match_seq { 2 } }
       \tl_set:Ne \l__anim_we_tl { \seq_item:Nn \l__anim_match_seq { 3 } }
-      \pgfmathsetmacro\animft@wee { \l__anim_we_tl - 0.001 }
+      \pgfmathsetmacro\animft@wee { \l__anim_we_tl - \anim@eps }
       %% Snap off at window end
       \tl_put_right:Ne \l__anim_kf_tl {
         \animft@wee s = "\animft@opA",
@@ -720,7 +752,7 @@
             \l__anim_next_tl \l__anim_match_seq
         {
           \tl_set:Ne \l__anim_ws_tl { \seq_item:Nn \l__anim_match_seq { 2 } }
-          \pgfmathsetmacro\animft@wse { \l__anim_ws_tl - 0.001 }
+          \pgfmathsetmacro\animft@wse { \l__anim_ws_tl - \anim@eps }
           \tl_put_right:Ne \l__anim_kf_tl {
             \animft@wse s = "\animft@opI",
             \l__anim_ws_tl s = "\animft@opA",
@@ -762,9 +794,9 @@
   \tl_set:Ne \l__anim_ws_tl  { \fp_to_decimal:N \g__anim_step_start_fp }
   \tl_set:Ne \l__anim_we_tl  { \fp_to_decimal:N \g__anim_step_end_fp   }
   %% Epsilon boundaries
-  \pgfmathsetmacro\animft@starte { max(\l__anim_ws_tl - 0.001, 0) }
-  \pgfmathsetmacro\animft@ende   { \l__anim_we_tl - 0.001 }
-  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - 0.001 }
+  \pgfmathsetmacro\animft@starte { max(\l__anim_ws_tl - \anim@eps, 0) }
+  \pgfmathsetmacro\animft@ende   { \l__anim_we_tl - \anim@eps }
+  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - \anim@eps }
   %% Build keyframe token list — \tl_set:Ne fully expands macros, so the
   %% resulting tl contains only literal decimal strings and punctuation.
   %% TikZ receives a pre-resolved string with no conditionals.
@@ -817,7 +849,7 @@
   \pgfmathsetmacro\animft@opI  { \@anim@get@inactive@opacity }
   %% Total duration and epsilon-before-total
   \tl_set:Ne \l__anim_dur_tl { \fp_to_decimal:N \g__anim_total_fp }
-  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - 0.001 }
+  \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - \anim@eps }
   %% Step bounds as decimal strings (for keyframe timestamps)
   \tl_set:Ne \l__anim_ws_tl { \fp_to_decimal:N \g__anim_step_start_fp }  %% s
   \tl_set:Ne \l__anim_we_tl { \fp_to_decimal:N \g__anim_step_end_fp   }  %% e
@@ -836,7 +868,7 @@
   \tl_clear:N \l__anim_kf_tl
   %% Initial inactive phase: hold opI from 0 to (s - ε), if s > 0.
   \fp_compare:nNnT { \g__anim_step_start_fp } > { 0 } {
-    \pgfmathsetmacro\animft@starte { \l__anim_ws_tl - 0.001 }
+    \pgfmathsetmacro\animft@starte { \l__anim_ws_tl - \anim@eps }
     \tl_put_right:Ne \l__anim_kf_tl {
       0s = "\animft@opI",
       \animft@starte s = "\animft@opI",
@@ -860,7 +892,7 @@
       }
     }
     %% Epsilon before t_end
-    \pgfmathsetmacro\animft@wee { \l__anim_mend_tl - 0.001 }
+    \pgfmathsetmacro\animft@wee { \l__anim_mend_tl - \anim@eps }
     %% Opacity for this half-period: active if k even, inactive if k odd.
     %% \tl_set:Ne expands \animft@opA/opI to the decimal string immediately.
     \int_if_odd:nTF { ##1 } {

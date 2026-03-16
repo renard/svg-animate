@@ -306,7 +306,33 @@
 %% a control-sequence name from arbitrary character tokens regardless of their
 %% catcodes, so we can write the name without needing ':' or '_' to be letters.
 %%
-\expandafter\protected\expandafter\def
+%% Why \long?
+%%
+%% Argument #2 is the raw TikZ content of a \reveal{...} block.  Users may
+%% write blank lines inside a \reveal for readability:
+%%
+%%   \reveal{
+%%
+%%     \draw ...;
+%%     \node ...;
+%%   }
+%%
+%% A blank line produces a \par token in the token stream.  TeX normally
+%% forbids \par inside macro arguments: if a macro is not declared \long,
+%% scanning for its argument stops at the first \par and raises:
+%%
+%%   ! Paragraph ended before <macro> was complete.
+%%
+%% All callers up the chain (\reveal uses +m, expl3 functions are implicitly
+%% long) already accept \par — this macro is the only non-expl3 link in the
+%% chain, so \long must be declared here explicitly.
+%%
+%% The \long prefix is placed before the \expandafter chain.  TeX sets the
+%% long-flag when it reads \long and the flag persists through the two
+%% \expandafter expansions that resolve \csname...\endcsname, so the final
+%% definition is effectively \long\protected\def <cs>#1#2{...}.
+%%
+\long\expandafter\protected\expandafter\def
   \csname __anim_emit_mf_scope:nn\endcsname#1#2{%
   \begin{scope}[animate={myself : opacity = {#1}}]%
     #2%

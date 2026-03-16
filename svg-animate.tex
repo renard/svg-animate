@@ -253,6 +253,26 @@ of the cascade.
   \reveal{\node {Step 3};}
 \end{animate}
 \end{dispListing}
+
+  \medskip\noindent\textbf{Interaction with \cs{noanimate}:}
+  When the animation ends (\texttt{loop=false}), the SVG browser removes
+  all \texttt{<animate>} effects and reverts each element to its base
+  (unanimated) opacity --- which for \cs{reveal} elements is~1, i.e.\
+  fully visible.  If a \cs{noanimate} fallback is present in the body, it
+  therefore becomes visible once the animation has finished, giving the
+  diagram a natural static resting state.
+
+\begin{dispListing}
+\begin{animate}[inactive opacity=0.08, loop=false]
+  %% Static resting state shown after the animation ends.
+  \noanimate{\fill[red!85!black] (0,2.2) circle[radius=0.85];}
+  \reveal{\fill[green!65!black]  (0,-2.2) circle[radius=0.85];}
+  \animstep
+  \reveal{\fill[orange!90!black] (0, 0.0) circle[radius=0.85];}
+  \animstep
+  \reveal{\fill[red!85!black]    (0, 2.2) circle[radius=0.85];}
+\end{animate}
+\end{dispListing}
 \end{docKey}
 
 \begin{docKey}[anim]{blink}{=\meta{seconds}}{no default}
@@ -269,7 +289,8 @@ of the cascade.
   last partial half-period is included and cut at the step boundary.
 
   \textbf{Note:} \texttt{blink} and \texttt{step} are mutually exclusive.
-  When both are specified, \texttt{blink} wins and \texttt{step} is ignored.
+  When both are specified, \texttt{blink} wins, \texttt{step} is ignored,
+  and a \texttt{PackageWarning} is issued.
 
 \begin{dispListing}
 \begin{animate}[duration=2, inactive opacity=0.15]

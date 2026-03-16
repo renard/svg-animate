@@ -948,7 +948,12 @@
       %% Normal path: SVG mode (always) or PDF without \noanimate.
       \fp_compare:nNnTF { \l__anim_blink_period_fp } > { 0 } {
         %% blink= set: oscillate during the current step.
-        %% (step= is ignored when blink= is also present)
+        %% Warn if step= was also given — the combination is undefined and blink= wins.
+        \tl_if_empty:NF \l__anim_step_spec_tl {
+          \PackageWarning{svg-animate}
+            {blink= and step= are mutually exclusive;\MessageBreak
+             blink= takes priority; step= is ignored}
+        }
         \__anim_reveal_blink:n { #2 }
       } {
         \tl_if_empty:NTF \l__anim_step_spec_tl {

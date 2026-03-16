@@ -103,6 +103,11 @@ all steps once and freeze on the last frame:
 
 The global default can be changed with `\tikzset{/anim/loop=false}`.
 
+When the animation ends, the SVG browser reverts each element to its base
+opacity (fully visible).  If a `\noanimate` fallback is present it therefore
+becomes visible at that point, giving the diagram a natural static resting
+state after the animation completes.
+
 ### Multi-step visibility with `step=`
 
 By default `\reveal` makes an element visible only during the **current step**.

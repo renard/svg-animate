@@ -66,7 +66,8 @@ Labels beside each light illustrate:
 
 - **fr. 1** — standard `\reveal`, active only in step 1
 - **fr. 2+4** / **fr. 3+4** — `step={2,4}` / `step={3,4}`, active in multiple non-consecutive steps
-- **fr. 3 — blink** — `blink=0.3`, flashes during step 3
+- **fr. 3 — blink** — `blink=0.3`, flashes during step 3 (default: blinks between opacity 1 and 0)
+- **fr. 3 — dimmed+blink** — `blink=0.3, inactive opacity=0.5, blink off opacity=0`, dimmed at 0.5 between steps but blinks fully off during step 3
 - **step={1-3}** — range syntax, active in steps 1 through 3
 - **step={1,2,3,4}** — always visible, active in every step
 
@@ -105,6 +106,8 @@ adapts automatically:
 | `noanimate` | — | force this `\reveal` to render in PDF even when `\noanimate` is present |
 | `step=<spec>` | — | show element during specific steps (see below) |
 | `blink=<seconds>` | — | blink at given period during the active step (see below) |
+| `blink on opacity` | `1` | opacity during blink "on" half-periods (independent of `active opacity`) |
+| `blink off opacity` | `0` | opacity during blink "off" half-periods (independent of `inactive opacity`) |
 
 ### One-shot animation with `loop=false`
 
@@ -173,6 +176,18 @@ partial half-period is shown up to the step boundary.
 
 `blink=` and `step=` are mutually exclusive; when both are given, `blink=`
 takes priority.
+
+The blink amplitude is controlled independently of the step-level opacity
+keys via `blink on opacity` (default `1`) and `blink off opacity` (default
+`0`).  This allows, for example, dimming an element between steps while
+still fully hiding it during blink-off phases:
+
+```latex
+%% Dimmed at 0.5 between steps, but blinks fully off (0) during step 2.
+\reveal[blink=0.4, inactive opacity=0.5, blink off opacity=0]{
+  \node[fill=yellow] at (0,0) {Step 2};
+}
+```
 
 ## Requirements
 

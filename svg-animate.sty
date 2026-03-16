@@ -86,6 +86,8 @@
   duration/.initial          = 2,    %% seconds per step (default)
   active opacity/.initial    = 1,    %% opacity when the step is active
   inactive opacity/.initial  = 0,    %% opacity when inactive  (\reveal)
+  blink on opacity/.initial  = 1,    %% opacity during blink "on"  half-periods
+  blink off opacity/.initial = 0,    %% opacity during blink "off" half-periods
   noanimate/.code            = { \@anim@reveal@statictrue },
                                %% force this \reveal to render in PDF even when
                                %% \noanimate is present in the animate body
@@ -267,6 +269,8 @@
 %%
 \def\@anim@get@active@opacity{\pgfkeysvalueof{/anim/active opacity}}
 \def\@anim@get@inactive@opacity{\pgfkeysvalueof{/anim/inactive opacity}}
+\def\@anim@get@blink@on@opacity{\pgfkeysvalueof{/anim/blink on opacity}}
+\def\@anim@get@blink@off@opacity{\pgfkeysvalueof{/anim/blink off opacity}}
 
 %% ── PITFALL B — TikZ animation-spec parser requires ':' at catcode 12 ─────────
 %%
@@ -425,6 +429,11 @@
 %%     duration=2            seconds per step
 %%     active opacity=1      opacity when active
 %%     inactive opacity=0    opacity when inactive (0=hidden, >0=dimmed)
+%%     blink on opacity=1    opacity during blink "on"  half-periods (default: 1)
+%%     blink off opacity=0   opacity during blink "off" half-periods (default: 0)
+%%                             Independent of inactive opacity (step-level visibility).
+%%                             To suppress blinking in the "all steps visible" idiom,
+%%                             set blink on opacity=1, blink off opacity=1 at env level.
 %%
 %%   Note: 'duration' on \reveal is accepted but silently ignored.
 %%
@@ -888,9 +897,16 @@
 %%   Epsilon trick: (t_next - ε) holds the current opacity, then t_next snaps.
 %%
 \cs_new_protected:Npn \__anim_reveal_blink:n #1 {
-  %% Opacity values (wrapper macros defined before \ExplSyntaxOn — PITFALL A)
-  \pgfmathsetmacro\animft@opA  { \@anim@get@active@opacity  }
-  \pgfmathsetmacro\animft@opI  { \@anim@get@inactive@opacity }
+  %% Opacity values (wrapper macros defined before \ExplSyntaxOn — PITFALL A).
+  %% opI    = inactive opacity: used OUTSIDE the active step (before/after).
+  %% opBon/opBoff = blink on/off opacity: used for the intra-step oscillation.
+  %% These are deliberately separate: inactive opacity controls step-level
+  %% visibility; blink on/off opacity controls the intra-step oscillation.
+  %% To suppress blinking in the "all steps visible" idiom, set
+  %% blink on opacity=1, blink off opacity=1 at the environment level.
+  \pgfmathsetmacro\animft@opI    { \@anim@get@inactive@opacity  }
+  \pgfmathsetmacro\animft@opBon  { \@anim@get@blink@on@opacity  }
+  \pgfmathsetmacro\animft@opBoff { \@anim@get@blink@off@opacity }
   %% Total duration and epsilon-before-total
   \tl_set:Ne \l__anim_dur_tl { \fp_to_decimal:N \g__anim_total_fp }
   \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - \anim@eps }
@@ -937,12 +953,12 @@
     }
     %% Epsilon before t_end
     \pgfmathsetmacro\animft@wee { \l__anim_mend_tl - \anim@eps }
-    %% Opacity for this half-period: active if k even, inactive if k odd.
-    %% \tl_set:Ne expands \animft@opA/opI to the decimal string immediately.
+    %% Opacity for this half-period: blink on if k even, blink off if k odd.
+    %% \tl_set:Ne expands \animft@opBon/opBoff to the decimal string immediately.
     \int_if_odd:nTF { ##1 } {
-      \tl_set:Ne \l__anim_next_tl { \animft@opI }
+      \tl_set:Ne \l__anim_next_tl { \animft@opBoff }
     } {
-      \tl_set:Ne \l__anim_next_tl { \animft@opA }
+      \tl_set:Ne \l__anim_next_tl { \animft@opBon }
     }
     %% Emit hold keyframes: opacity fixed at op for the interval [t_start, t_end - ε].
     %% The snap at t_end is handled either by the next iteration's t_start keyframe

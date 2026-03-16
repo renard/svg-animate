@@ -278,8 +278,8 @@ of the cascade.
 
 \begin{docKey}[anim]{blink}{=\meta{seconds}}{no default}
   Makes the element blink during its active step: the opacity alternates
-  between \docValue{active opacity} and \docValue{inactive opacity} at the
-  given period.  The element behaves normally (fully hidden or dimmed) during
+  between \docValue{blink on opacity} and \docValue{blink off opacity} at the
+  given period.  The element is shown at \docValue{inactive opacity} during
   all other steps.
 
   The \meta{seconds} value is the \emph{full} blink period: the element is
@@ -300,6 +300,36 @@ of the cascade.
   \reveal[blink=0.4]{\node[fill=yellow] at (0,0) {Step 2 — blinks};}
   \animstep
   \reveal{\node at (0,-1) {Step 3 — static};}
+\end{animate}
+\end{dispListing}
+\end{docKey}
+
+\begin{docKey}[anim]{blink on opacity}{=\meta{value}}{initial: \texttt{1}}
+  Opacity used during the \emph{``on''} (visible) half-periods of a blink.
+  Defaults to \texttt{1} (fully opaque).  Independent of \docValue{active opacity}.
+\end{docKey}
+
+\begin{docKey}[anim]{blink off opacity}{=\meta{value}}{initial: \texttt{0}}
+  Opacity used during the \emph{``off''} (hidden) half-periods of a blink.
+  Defaults to \texttt{0} (fully hidden).  Independent of \docValue{inactive opacity},
+  which controls the opacity \emph{outside} the active step.
+
+  This distinction matters when \docValue{inactive opacity} is set above zero:
+  the element can be \emph{dimmed} between steps while still
+  \emph{fully hiding} during its blink-off phases.
+
+  To suppress blinking in the ``all steps at opacity~1'' idiom, set
+  \texttt{blink on opacity=1, blink off opacity=1} at the environment level.
+
+\begin{dispListing}
+%% Warning icon: dimmed at 0.5 between steps, blinks to fully hidden during step 2.
+\begin{animate}[duration=2]
+  \reveal{\node at (0,1) {Step 1};}
+  \animstep
+  \reveal[blink=0.4, inactive opacity=0.5, blink off opacity=0]{%
+    \node[fill=yellow] at (0,0) {Step 2 — dimmed + blink};}
+  \animstep
+  \reveal{\node at (0,-1) {Step 3};}
 \end{animate}
 \end{dispListing}
 \end{docKey}

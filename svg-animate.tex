@@ -310,26 +310,41 @@ of the cascade.
 \end{docKey}
 
 \begin{docKey}[anim]{blink off opacity}{=\meta{value}}{initial: \texttt{0}}
-  Opacity used during the \emph{``off''} (hidden) half-periods of a blink.
-  Defaults to \texttt{0} (fully hidden).  Independent of \docValue{inactive opacity},
-  which controls the opacity \emph{outside} the active step.
+  Opacity used during the \emph{``off''} half-periods of the blink oscillation
+  \emph{within the active step}.  Defaults to \texttt{0} (fully hidden).
 
-  This distinction matters when \docValue{inactive opacity} is set above zero:
-  the element can be \emph{dimmed} between steps while still
-  \emph{fully hiding} during its blink-off phases.
-
-  To suppress blinking in the ``all steps at opacity~1'' idiom, set
-  \texttt{blink on opacity=1, blink off opacity=1} at the environment level.
+  Between steps the element uses \docValue{inactive opacity} as usual —
+  \docValue{blink off opacity} has no effect outside the active step.
+  To hide a blink element between steps, set \texttt{inactive opacity=0}
+  explicitly; the \docValue{static} key on the \texttt{animate} environment
+  ensures this does not suppress the element in the static display:
 
 \begin{dispListing}
-%% Warning icon: dimmed at 0.5 between steps, blinks to fully hidden during step 2.
+%% Hidden between steps; blinks between 1 (on) and 0.25 (off) during step 2.
 \begin{animate}[duration=2]
   \reveal{\node at (0,1) {Step 1};}
   \animstep
-  \reveal[blink=0.4, inactive opacity=0.5, blink off opacity=0]{%
-    \node[fill=yellow] at (0,0) {Step 2 — dimmed + blink};}
+  \reveal[blink=0.4, inactive opacity=0, blink off opacity=0.25]{%
+    \node[fill=yellow] at (0,0) {Step 2 — dimmed blink};}
   \animstep
   \reveal{\node at (0,-1) {Step 3};}
+\end{animate}
+\end{dispListing}
+\end{docKey}
+
+\begin{docKey}[anim]{static}{(no value)}{default: not set}
+  Renders all \cs{reveal} elements at their natural (full) opacity without
+  emitting any SMIL keyframe animation.  Equivalent to drawing all steps
+  simultaneously, which is useful for printed handouts and static overviews.
+
+  This key supersedes the older idiom of setting
+  \texttt{active opacity=1, inactive opacity=1,}
+  \texttt{blink on opacity=1, blink off opacity=1} at the environment level,
+  which failed whenever an element carried an explicit element-level override.
+
+\begin{dispListing}
+\begin{animate}[static]
+  \stepOne \animstep \stepTwo \animstep \stepThree
 \end{animate}
 \end{dispListing}
 \end{docKey}

@@ -41,8 +41,9 @@
   \reveal[step={3,4}]{%
     \node[right, font=\sffamily, black!70] at (1.3, 2.2) {fr. 3+4};
   }%
-  %% Blinking marker: demonstrates blink= key
-  \reveal[blink=0.3]{%
+  %% Blinking marker: demonstrates blink= key.
+  %% The static column is immune because it uses \begin{animate}[static].
+  \reveal[blink=0.3,]{%
     \node[fill=yellow!80, draw=orange!80!black, font=\sffamily,
           inner sep=2pt, rounded corners=2pt] at (0,-4.0) {fr. 3 — blink};
   }%
@@ -50,6 +51,14 @@
   \reveal[step={1-3}]{%
     \node[font=\sffamily, black!50] at (0,-5.6) {step=\{1-3\}};
   }%
+  %% Demonstrates blink off opacity: during step 3 the element blinks between
+  %% blink on opacity=1 (visible) and blink off opacity=0.25 (dimmed),
+  %% while inactive opacity=0 keeps it hidden between steps.
+  \reveal[blink=0.3, inactive opacity=0, blink off opacity=0.25]{%
+    \node[fill=yellow!80, draw=orange!80!black, font=\sffamily,
+          inner sep=2pt, rounded corners=2pt] at (0,-6.2) {fr. 3 — dimmed blink};
+  }%
+
 }
 
 \newcommand{\stepFour}{%
@@ -112,8 +121,7 @@
   %% ── Column 3 : static — all steps at opacity 1 simultaneously ────────────
   \begin{tikzpicture}
     \housing
-    \begin{animate}[active opacity=1, inactive opacity=1,
-                    duration=1.5, loop=false]
+    \begin{animate}[static]
       \stepOne
       \animstep
       \stepTwo

@@ -41,6 +41,9 @@
 %% True when the animation should loop (default).
 %% Set to false via loop=false to produce a one-shot animation.
 \newif\if@anim@loop \@anim@looptrue
+%% True when the animate environment's static=true key was set.
+%% When true, \reveal renders content at full opacity without keyframe animation.
+\newif\if@anim@envstatic
 %%
 %% When running under latex in DVI mode (pdfoutput=0), configure three things:
 %%
@@ -95,6 +98,10 @@
   loop/.default              = true,
                                %% true (default): animation loops indefinitely
                                %% false: animation plays once and freezes on the last frame
+  static/.code               = { \csname @anim@envstatic#1\endcsname },
+  static/.default            = true,
+                               %% true: all \reveal render at full opacity (no animation)
+                               %% shorthand for the "show all steps simultaneously" idiom
 }
 
 %% ── Epsilon for instantaneous opacity snaps ──────────────────────────────────
@@ -429,11 +436,10 @@
 %%     duration=2            seconds per step
 %%     active opacity=1      opacity when active
 %%     inactive opacity=0    opacity when inactive (0=hidden, >0=dimmed)
-%%     blink on opacity=1    opacity during blink "on"  half-periods (default: 1)
-%%     blink off opacity=0   opacity during blink "off" half-periods (default: 0)
-%%                             Independent of inactive opacity (step-level visibility).
-%%                             To suppress blinking in the "all steps visible" idiom,
-%%                             set blink on opacity=1, blink off opacity=1 at env level.
+%%     blink on opacity=1    opacity during blink "on"  half-periods within active step
+%%     blink off opacity=0   opacity during blink "off" half-periods within active step
+%%                             (between steps the element uses inactive opacity as usual)
+%%     static                render all \reveal at full opacity (no animation)
 %%
 %%   Note: 'duration' on \reveal is accepted but silently ignored.
 %%
@@ -882,16 +888,24 @@
 
 %% \__anim_reveal_blink:n {content}
 %%   Called by \reveal when blink= key is set (period > 0).
-%%   The element oscillates between active opacity and inactive opacity at
-%%   the given period during its active step; it stays at inactive opacity
-%%   during all other steps.
+%%
+%%   Opacity rules:
+%%     - Frame inactive (before/after active step): inactive opacity
+%%     - Frame active, blink "on"  half-periods: blink on  opacity
+%%     - Frame active, blink "off" half-periods: blink off opacity
+%%
+%%   blink on/off opacity govern ONLY the intra-step oscillation.
+%%   Between steps the element follows inactive opacity, exactly like
+%%   a non-blink \reveal.  Use inactive opacity=0 on a blink element to
+%%   hide it between steps; the static key on the animate environment
+%%   overrides all per-element opacity settings.
 %%
 %%   Half-period h = blink_period / 2.
 %%   Number of half-periods: n_h = floor((e - s) / h), minimum 1.
 %%   For k = 0 .. n_h-1:
-%%     hold active opacity  when k is even (first half = visible)
-%%     hold inactive opacity when k is odd  (second half = hidden)
-%%   After the step: hold inactive opacity until the total duration.
+%%     hold blink on  opacity when k is even (first half = visible)
+%%     hold blink off opacity when k is odd  (second half = hidden)
+%%   Before/after the step: hold inactive opacity.
 %%
 %%   The epsilon trick applies at each half-period boundary just as in
 %%   Epsilon trick: (t_next - ε) holds the current opacity, then t_next snaps.
@@ -899,11 +913,8 @@
 \cs_new_protected:Npn \__anim_reveal_blink:n #1 {
   %% Opacity values (wrapper macros defined before \ExplSyntaxOn — PITFALL A).
   %% opI    = inactive opacity: used OUTSIDE the active step (before/after).
-  %% opBon/opBoff = blink on/off opacity: used for the intra-step oscillation.
-  %% These are deliberately separate: inactive opacity controls step-level
-  %% visibility; blink on/off opacity controls the intra-step oscillation.
-  %% To suppress blinking in the "all steps visible" idiom, set
-  %% blink on opacity=1, blink off opacity=1 at the environment level.
+  %% opBon  = blink on  opacity: used for even (on)  half-periods within the step.
+  %% opBoff = blink off opacity: used for odd  (off) half-periods within the step.
   \pgfmathsetmacro\animft@opI    { \@anim@get@inactive@opacity  }
   \pgfmathsetmacro\animft@opBon  { \@anim@get@blink@on@opacity  }
   \pgfmathsetmacro\animft@opBoff { \@anim@get@blink@off@opacity }
@@ -968,7 +979,7 @@
       \animft@wee s = "\l__anim_next_tl",
     }
   }
-  %% Snap to inactive at step end; hold until total; optionally repeat.
+  %% Snap to inactive opacity at step end; hold until total; optionally repeat.
   \tl_put_right:Ne \l__anim_kf_tl {
     \l__anim_we_tl s = "\animft@opI",
     \animft@totale s = "\animft@opI"
@@ -1006,6 +1017,8 @@
       \if@anim@reveal@static #2 \fi
     } {
       %% Normal path: SVG mode (always) or PDF without \noanimate.
+      %% static mode: render content at full opacity without any keyframe animation.
+      \if@anim@envstatic #2 \else
       \fp_compare:nNnTF { \l__anim_blink_period_fp } > { 0 } {
         %% blink= set: oscillate during the current step.
         %% Warn if step= was also given — the combination is undefined and blink= wins.
@@ -1024,6 +1037,7 @@
           \__anim_reveal_multistep:n { #2 }
         }
       }
+      \fi                                                            %% end \if@anim@envstatic
     }
   \group_end:
 }
@@ -1054,6 +1068,7 @@
   %% #1 = animate-level options (e.g. "duration=1, inactive opacity=0")
   %% #2 = full body collected verbatim by +b, not yet executed
   \@anim@insidetrue                              %% guard: detect \animstep outside animate
+  \@anim@envstaticfalse                          %% reset for each new environment
   \tikzset{ /anim/.cd, #1 }                      %% apply animate-level options globally
 
   %% PDF mode: scan the body for \noanimate before executing anything.

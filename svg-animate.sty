@@ -77,107 +77,6 @@
                                %% false: animation plays once and freezes on the last frame
 }
 
-
-%% animframe{start}{end}{total}
-%%
-%%   Low-level environment.  Wraps its content in a TikZ scope that animates
-%%   the opacity so the content is visible only during the window [start, end].
-%%   All three arguments are absolute times in seconds.
-%%   Available for advanced use cases.  \reveal itself now uses the higher-level
-%%   \__anim_reveal_simple:n (which builds the keyframe list in expl3 to avoid
-%%   the "doesn't match its definition" error when loop=false).
-%%
-%%   #1 = start time (s)   #2 = end time (s)   #3 = total duration (s)
-%%
-%%   The TikZ animate key works as follows:
-%%
-%%     \begin{scope}[animate={myself : opacity = {Ts = "V", ...}}]
-%%       ... content ...
-%%     \end{scope}
-%%
-%%   "myself" means the animation targets every element drawn inside this scope.
-%%   Each  Ts = "V"  entry is a keyframe: at time T seconds, set opacity to V.
-%%   SVG interpolates linearly between consecutive keyframes.
-%%   "repeats" makes the animation loop forever after reaching the last keyframe.
-%%
-%%   The epsilon trick (subtracting 0.001 s) forces instantaneous jumps:
-%%   instead of fading gradually, the opacity holds its value until 1 ms before
-%%   the transition, then snaps.  Without it every step would cross-fade with
-%%   its neighbors.
-%%
-%%   \pgfmathsetmacro  \macro  {expr}  evaluates {expr} with PGF's math engine
-%%   and stores the result as a plain decimal string in \macro.
-%%   The @-sign in \animframe@opA etc. is a naming convention for private macros.
-%%   In a .sty file '@' is always catcode 11 (letter), so these names are valid
-%%   throughout without any \makeatletter / \makeatother.
-%%
-\newenvironment{animframe}[3]{%
-  \pgfmathsetmacro\animft@opA{\pgfkeysvalueof{/anim/active opacity}}%    e.g. 1
-  \pgfmathsetmacro\animft@opI{\pgfkeysvalueof{/anim/inactive opacity}}%  e.g. 0
-  %% Epsilon boundaries: one millisecond before each hard transition.
-  %% max(..., 0) prevents a negative timestamp when start=0.
-  \pgfmathsetmacro\animft@starte{max(#1 - 0.001, 0)}%
-  \pgfmathsetmacro\animft@ende{#2 - 0.001}%
-  \pgfmathsetmacro\animft@totale{#3 - 0.001}%
-  %%
-  %% Pre-compute whether to append "repeats" BEFORE building the animation spec.
-  %% A \if...\fi conditional must NOT appear inside the animate={...} key value:
-  %% TikZ's animation spec parser reads tokens with limited expansion, and an
-  %% unexpanded \if@anim@loop token causes the "doesn't match its definition"
-  %% error when loop=false (even though loop=true accidentally works because
-  %% \iftrue expands away cleanly via TikZ's \expandafter chains).
-  %% Fix: resolve the conditional here, outside the spec, and store the result
-  %% in \animft@repeats which is a plain no-argument macro that TikZ expands
-  %% just like \animft@opA or \animft@ende.
-  \if@anim@loop
-    \def\animft@repeats{,repeats,}%
-  \else
-    \def\animft@repeats{}%
-  \fi
-  %% \ifdim compares two TeX dimensions.  We append "pt" to turn the seconds
-  %% value into a dimension, giving a convenient way to test whether start == 0.
-  %% When start=0 we omit the initial inactive phase (it would be at t<0).
-  \ifdim#1pt=0pt%
-    %% Step starts at t=0 — active immediately.
-    %% Example: start=0, end=1, total=3, opA=1, opI=0
-    %%   t=0.000  opacity=1
-    %%   t=0.999  opacity=1
-    %%   t=1.000  opacity=0   <- snap off
-    %%   t=2.999  opacity=0
-    %%   repeats  (omitted when loop=false)
-    \begin{scope}[animate={%
-      myself : opacity = {%
-        0s = "\animft@opA",%
-        \animft@ende s = "\animft@opA",%
-        #2 s = "\animft@opI",%
-        \animft@totale s = "\animft@opI"\animft@repeats%
-      }%
-    }]%
-  \else%
-    %% Step starts after t=0 — inactive first, then active, then inactive again.
-    %% Example: start=1, end=2, total=3, opA=1, opI=0
-    %%   t=0.000  opacity=0
-    %%   t=0.999  opacity=0
-    %%   t=1.000  opacity=1   <- snap on
-    %%   t=1.999  opacity=1
-    %%   t=2.000  opacity=0   <- snap off
-    %%   t=2.999  opacity=0
-    %%   repeats  (omitted when loop=false)
-    \begin{scope}[animate={%
-      myself : opacity = {%
-        0s = "\animft@opI",%
-        \animft@starte s = "\animft@opI",%
-        #1 s = "\animft@opA",%
-        \animft@ende s = "\animft@opA",%
-        #2 s = "\animft@opI",%
-        \animft@totale s = "\animft@opI"\animft@repeats%
-      }%
-    }]%
-  \fi%
-}{%
-  \end{scope}%
-}
-
 %% ════════════════════════════════════════════════════════════════════════════════
 %% CATCODES — what they are, how they work, why they matter here
 %% ════════════════════════════════════════════════════════════════════════════════
@@ -432,7 +331,7 @@
 %%     \g__anim_total_fp        5.0  (constant across all steps)
 %%
 %%   When \reveal{...} runs inside the segment, it reads those globals and
-%%   passes them to \animframe, which emits the SVG opacity keyframes.
+%%   passes them to \__anim_reveal_simple:n, which emits the SVG opacity keyframes.
 %%   After execution, start advances to end, ready for the next step.
 %%
 %% ── User interface ────────────────────────────────────────────────────────────
@@ -767,7 +666,7 @@
   }
 
   %% ── 3. Build SMIL keyframe token list ────────────────────────────────────
-  %% Opacity values and total duration (same pgfmathsetmacro idiom as animframe).
+  %% Opacity values and total duration (same pgfmathsetmacro idiom as \__anim_reveal_simple:n).
   \pgfmathsetmacro\animft@opA    { \@anim@get@active@opacity  }
   \pgfmathsetmacro\animft@opI    { \@anim@get@inactive@opacity }
   %% Pre-expand \fp_to_decimal:N into a plain decimal string before pgfmath sees it,
@@ -847,7 +746,7 @@
 
 %% \__anim_reveal_simple:n {content}
 %%   Called by \reveal when neither blink= nor step= is set.
-%%   Equivalent to the animframe environment, but builds the keyframe token list
+%%   Builds the keyframe token list
 %%   entirely in expl3 (using \tl_set:Ne + \if@anim@loop outside the spec) before
 %%   passing it to TikZ via \__anim_emit_mf_scope:Vn.
 %%
@@ -910,7 +809,7 @@
 %%   After the step: hold inactive opacity until the total duration.
 %%
 %%   The epsilon trick applies at each half-period boundary just as in
-%%   animframe: (t_next - ε) holds the current opacity, then t_next snaps.
+%%   Epsilon trick: (t_next - ε) holds the current opacity, then t_next snaps.
 %%
 \cs_new_protected:Npn \__anim_reveal_blink:n #1 {
   %% Opacity values (wrapper macros defined before \ExplSyntaxOn — PITFALL A)
@@ -992,13 +891,13 @@
 %%
 %%   The key invariant: \g__anim_has_noanimate_bool is ALWAYS false in SVG mode
 %%   (the scan that sets it is skipped when \if@anim@svgmode is true).  Therefore
-%%   \bool_if:NTF below always takes the animframe path in SVG mode — no explicit
+%%   \bool_if:NTF below always takes the animation path in SVG mode — no explicit
 %%   SVG/PDF branch needed, and the original animation behaviour is preserved.
 %%
-%%   PDF mode, no \noanimate in body:  bool=false  →  animframe called, but TikZ
+%%   PDF mode, no \noanimate in body:  bool=false  →  animation emitted, but TikZ
 %%     animation keys are silently ignored by the PDF driver, so #2 is rendered at
 %%     full opacity (all steps stacked — legacy behaviour).
-%%   PDF mode, \noanimate present:     bool=true   →  animframe suppressed.
+%%   PDF mode, \noanimate present:     bool=true   →  animation suppressed.
 %%     Render #2 only if this element carries the /anim/noanimate key.
 %%
 %%   'duration' in [options] is accepted but silently ignored (per-element timing

@@ -357,24 +357,6 @@ The \env{animate} environment scans its collected body for the token
 made once per environment instance and does not require two separate document
 structures.
 
-\subsection{Low-level environment}
-
-\begin{docEnvironment}{animframe}{\marg{start}\marg{end}\marg{total}}
-  Low-level building block.  Makes its content visible only during the time
-  window [\meta{start}, \meta{end}] (in seconds) out of a total animation
-  of \meta{total} seconds.  Opacity snaps instantaneously at each boundary
-  (epsilon trick).
-
-  Used internally by \cs{reveal}; also available for advanced use cases where
-  you compute time windows yourself.
-
-\begin{dispListing}
-\begin{animframe}{0}{1.5}{3.5}
-  \fill[red] (0,0) circle[radius=1];
-\end{animframe}
-\end{dispListing}
-\end{docEnvironment}
-
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Example: traffic light}
 

@@ -41,6 +41,26 @@
 %% True when the animation should loop (default).
 %% Set to false via loop=false to produce a one-shot animation.
 \newif\if@anim@loop \@anim@looptrue
+%%
+%% When running under latex in DVI mode (pdfoutput=0), configure three things:
+%%
+%%   1. \@anim@svgmodetrue
+%%      Activates SVG-specific behaviour throughout the package: \reveal emits
+%%      SMIL keyframe animations, \noanimate is suppressed, etc.
+%%
+%%   2. \def\pgfsysdriver{pgfsys-dvisvgm.def}
+%%      Tells PGF/TikZ to use the dvisvgm backend instead of the default dvips
+%%      backend.  This must be set BEFORE \RequirePackage{tikz} because PGF
+%%      reads \pgfsysdriver at load time to select the system layer.  Without
+%%      this, TikZ would emit PostScript specials (dvips) instead of SVG-aware
+%%      specials, and dvisvgm would not produce a valid animated SVG.
+%%
+%%   3. \PassOptionsToPackage{dvisvgm}{graphicx}
+%%      Ensures the graphicx package (loaded by \RequirePackage below) also
+%%      uses the dvisvgm driver for \includegraphics.  Without this, graphicx
+%%      would default to dvips and any raster image included in the document
+%%      would not survive the DVI→SVG conversion.
+%%
 \ifdefined\pdfoutput
   \ifnum\pdfoutput=0
     \@anim@svgmodetrue
@@ -51,9 +71,7 @@
 
 \RequirePackage{tikz}
 \RequirePackage{graphicx}
-\DeclareGraphicsExtensions{.png,.jpg,.jpeg,.pdf}
-\usetikzlibrary{arrows.meta, animations}
-\usetikzlibrary{calc}
+\usetikzlibrary{animations}
 
 %% ── Animation ────────────────────────────────────────────────────────────────
 %%

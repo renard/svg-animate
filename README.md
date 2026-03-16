@@ -50,6 +50,26 @@ its own step; the amber light uses a shorter `duration`.
 > Open `example.svg` directly in a browser to see the animation.
 > GitHub's Markdown renderer may display it as a static image.
 
+## Feature showcase
+
+The `test.tex` file exercises the main features side by side:
+
+![Feature showcase](test.svg)
+
+| Column | Setting | What it shows |
+|---|---|---|
+| **loop=true** | default | loops indefinitely |
+| **loop=false** | `loop=false` + `\noanimate` | plays once, reverts to a static resting state |
+| **static** | `inactive opacity=1` | all steps visible simultaneously |
+
+Labels beside each light illustrate:
+
+- **fr. 1** — standard `\reveal`, active only in step 1
+- **fr. 2+4** / **fr. 3+4** — `step={2,4}` / `step={3,4}`, active in multiple non-consecutive steps
+- **fr. 3 — blink** — `blink=0.3`, flashes during step 3
+- **step={1-3}** — range syntax, active in steps 1 through 3
+- **step={1,2,3,4}** — always visible, active in every step
+
 ## Static PDF output
 
 In PDF mode (`xelatex`, `pdflatex`) the package detects the output format and

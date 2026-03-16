@@ -1,0 +1,128 @@
+\documentclass[border=20pt]{standalone}
+\usepackage{svg-animate}
+
+%% ── Static housing (always visible, drawn outside animate) ───────────────────
+
+\newcommand{\housing}{%
+  \fill[black!80, rounded corners=6pt] (-1.2,-3.6) rectangle (1.2,3.6);
+  \fill[black!50, rounded corners=4pt] (-1.0,-3.4) rectangle (1.0,3.4);
+  \foreach \y in {-2.2, 0, 2.2}
+    { \fill[black!60] (0,\y) circle[radius=0.85]; }
+}
+
+%% ── Per-step content macros ──────────────────────────────────────────────────
+%%
+%% NOTE: \animstep must appear LITERALLY in each animate body — the +b
+%% collector does not expand macros before splitting on \animstep.
+%% Only the step *content* is factored into these macros.
+
+\newcommand{\stepOne}{%
+  \reveal{%
+    \fill[green!65!black]  (0,-2.2) circle[radius=0.75];
+    \node[right, font=\sffamily, black!70] at (1.3,-2.2) {fr. 1};
+  }%
+}
+
+\newcommand{\stepTwo}{%
+  \reveal{%
+    \fill[orange!90!black] (0, 0.0) circle[radius=0.75];
+  }%
+  %% Label shared with step 4: use step= key so it appears in both frames
+  \reveal[step={2,4}]{%
+    \node[right, font=\sffamily, black!70] at (1.3, 0.0) {fr. 2+4};
+  }%
+}
+
+\newcommand{\stepThree}{%
+  \reveal{%
+    \fill[red!85!black]    (0, 2.2) circle[radius=0.75];
+  }%
+  %% Label shared with step 4: use step= key so it appears in both frames
+  \reveal[step={3,4}]{%
+    \node[right, font=\sffamily, black!70] at (1.3, 2.2) {fr. 3+4};
+  }%
+  %% Blinking marker: demonstrates blink= key
+  \reveal[blink=0.3]{%
+    \node[fill=yellow!80, draw=orange!80!black, font=\sffamily,
+          inner sep=2pt, rounded corners=2pt] at (0,-4.0) {fr. 3 — blink};
+  }%
+  %% step={1-3}: visible in steps 1 to 3 — demonstrates range syntax
+  \reveal[step={1-3}]{%
+    \node[font=\sffamily, black!50] at (0,-5.6) {step=\{1-3\}};
+  }%
+}
+
+\newcommand{\stepFour}{%
+  \reveal{%
+    \fill[red!85!black]    (0, 2.2) circle[radius=0.75];
+  }%
+  \reveal{%
+    \fill[orange!90!black] (0, 0.0) circle[radius=0.75];
+  }%
+  %% step={1,2,3,4}: visible in every frame — demonstrates the step= key
+  \reveal[step={1,2,3,4}]{%
+    \node[font=\sffamily, black!50] at (0,-4.8) {step=\{1,2,3,4\}};
+  }%
+}
+
+\begin{document}
+\begin{tabular}{@{}c@{\qquad}c@{\qquad}c@{}}
+  \small\texttt{loop=true}  &
+  \small\texttt{loop=false} &
+  \small static (all steps) \\[6pt]
+
+  %% ── Column 1 : loops forever ─────────────────────────────────────────────
+  \begin{tikzpicture}
+    \housing
+    \begin{animate}[inactive opacity=0.08, duration=1.5]
+      \stepOne
+      \animstep
+      \stepTwo
+      \animstep[duration=0.5]
+      \stepThree
+      \animstep
+      \stepFour
+    \end{animate}
+  \end{tikzpicture}
+
+  &
+
+  %% ── Column 2 : plays once, rests on \noanimate frame ─────────────────────
+  \begin{tikzpicture}
+    \housing
+    \begin{animate}[inactive opacity=0.08, duration=1.5, loop=false]
+      %% Resting state shown after the animation ends (SMIL fill=remove).
+      \noanimate{%
+        \foreach \y in {-2.2, 0, 2.2}
+          { \fill[black!35] (0,\y) circle[radius=0.75]; }
+        \node[font=\sffamily, black!50] at (0,-4.2) {end state};
+      }%
+      \stepOne
+      \animstep
+      \stepTwo
+      \animstep[duration=0.5]
+      \stepThree
+      \animstep
+      \stepFour
+    \end{animate}
+  \end{tikzpicture}
+
+  &
+
+  %% ── Column 3 : static — all steps at opacity 1 simultaneously ────────────
+  \begin{tikzpicture}
+    \housing
+    \begin{animate}[active opacity=1, inactive opacity=1,
+                    duration=1.5, loop=false]
+      \stepOne
+      \animstep
+      \stepTwo
+      \animstep[duration=0.5]
+      \stepThree
+      \animstep
+      \stepFour
+    \end{animate}
+  \end{tikzpicture}
+
+\end{tabular}
+\end{document}

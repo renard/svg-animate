@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-all: example.svg svg-animate.pdf
+all: example.svg test.svg svg-animate.pdf
 
 ## Animated SVG ────────────────────────────────────────────────────────────────
 
@@ -16,6 +16,22 @@ example.svg: example.dvi
 example.pdf: example.tex svg-animate.sty
 	xelatex $<
 
+# ==========
+
+test.dvi: test.tex svg-animate.sty
+	latex $<
+	latex $<
+
+test.svg: test.dvi
+	dvisvgm --font-format=woff2 --optimize=all --bbox=papersize $< -o $@
+
+## Static PDF of the example (included in svg-animate.pdf via \includegraphics) ────────
+
+test.pdf: test.tex svg-animate.sty
+	xelatex $<
+
+
+# ==========
 ## Documentation PDF ──────────────────────────────────────────────────────────
 
 svg-animate.pdf: svg-animate.tex svg-animate.sty example.pdf
@@ -28,4 +44,4 @@ clean:
 	rm -f *.aux *.log *.dvi *.toc *.out *.tcbtemp
 
 clean-all: clean
-	rm -f example.svg example.pdf svg-animate.pdf
+	rm -f example*.svg example*.pdf test*.svg test*.pdf svg-animate.pdf

@@ -1,5 +1,27 @@
 # svg-animate
 
+**svg-animate** turns your TikZ diagrams into step-by-step animations that
+run natively in any web browser — no JavaScript, no plugins, no PDF viewer
+required.
+
+Write your diagram once.  Get two outputs from the same source file:
+
+- an **animated SVG** for the web, embedded slides, or GitHub README previews
+- a **static PDF** for print, with all steps stacked or collapsed to a single
+  clean frame
+
+The animation model maps directly onto the way you already think about
+progressive diagram reveals:
+
+- **`\begin{animate}`** — wraps your TikZ picture
+- **`\reveal{...}`** — marks what appears at the current step
+- **`\animstep`** — advances to the next step
+
+That is all you need for a working animation.  Fine-grained control is there
+when you need it: per-step durations, multi-step and range visibility,
+blinking elements, one-shot or looping playback, and a `\noanimate` fallback
+that controls what a PDF reader shows after the animation ends.
+
 A LaTeX package for producing **animated SVG diagrams** with TikZ.
 
 The animation model is simple: content is divided into discrete *steps*, and

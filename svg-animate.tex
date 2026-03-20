@@ -91,6 +91,31 @@ dvisvgm --font-format=woff2 \
 xelatex diagram.tex
 \end{dispListing}
 
+\subsection{Embedding bitmap images}
+
+If the diagram includes PNG or JPEG images (e.g.\ via \cs{includegraphics}),
+pass \texttt{--embed-bitmaps} to \texttt{dvisvgm} to produce a fully
+self-contained SVG\@.  Each bitmap is then inlined as a base64 data URI
+rather than an external file reference, so the SVG can be moved or published
+independently of the source directory.
+
+\begin{dispListing}
+dvisvgm --font-format=woff2 --optimize=all --bbox=min \
+        --embed-bitmaps diagram.dvi -o diagram.svg
+\end{dispListing}
+
+\textbf{Why a driver override is needed.}
+The stock \texttt{graphicx} dvisvgm driver (\texttt{graphics-def/dvisvgm.def})
+implements bitmap inclusion via \verb|\special{dvisvgm:raw}|, injecting a
+literal \texttt{<image xlink:href="file.png"/>} fragment.  \texttt{dvisvgm}
+copies this verbatim into the output SVG, leaving an external reference that
+\texttt{--embed-bitmaps} does not process.
+
+\texttt{svg-animate} therefore redefines \cs{Ginclude@bitmap} (in SVG mode
+only) to emit \verb|\special{dvisvgm:img W H file}| instead.  This is the
+special type that \texttt{--embed-bitmaps} does process, converting the file
+to a base64 data URI.
+
 The package detects the output mode via \texttt{\textbackslash pdfoutput}
 (defined by pdfTeX and LuaTeX):
 \begin{itemize}

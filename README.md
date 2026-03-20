@@ -59,6 +59,22 @@ dvisvgm --font-format=woff2 --optimize=all --bbox=min diagram.dvi -o diagram.svg
 xelatex diagram.tex
 ```
 
+### Embedding bitmap icons
+
+If your diagram includes PNG or JPEG images (e.g. via `\includegraphics`), add
+`--embed-bitmaps` to make the SVG self-contained — images are inlined as base64
+data URIs instead of external file references:
+
+```bash
+dvisvgm --font-format=woff2 --optimize=all --bbox=min --embed-bitmaps diagram.dvi
+```
+
+> **Note:** `svg-animate` overrides the graphicx dvisvgm driver's
+> `\Ginclude@bitmap` so that bitmaps are referenced via
+> `\special{dvisvgm:img}`, the only special type that `--embed-bitmaps`
+> actually processes.  The stock driver uses `\special{dvisvgm:raw}`, which
+> `--embed-bitmaps` silently ignores.
+
 Or simply run `make` inside the package directory to build `example.svg` and
 `doc.pdf`.
 

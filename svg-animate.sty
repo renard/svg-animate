@@ -78,6 +78,55 @@
 \RequirePackage{graphicx}
 \usetikzlibrary{animations}
 
+%% ── Bitmap inclusion override (SVG mode only) ────────────────────────────────
+%%
+%% WHY we override \Ginclude@bitmap
+%% ----------------------------------
+%% The graphicx dvisvgm driver (graphics-def/dvisvgm.def) implements bitmap
+%% inclusion via \special{dvisvgm:raw ...}, injecting a literal SVG fragment:
+%%
+%%   <g transform="translate({?x},{?y})">
+%%     <svg ...><image width="W" height="H" xlink:href="file.png"/></svg>
+%%   </g>
+%%
+%% dvisvgm copies this raw fragment verbatim into the output SVG, leaving
+%% xlink:href as an *external* file reference.  The dvisvgm flag --embed-bitmaps
+%% only operates on \special{dvisvgm:img} specials — it has no effect on
+%% xlink:href attributes inside dvisvgm:raw fragments.
+%%
+%% We therefore redefine \Ginclude@bitmap to emit \special{dvisvgm:img} instead.
+%% With --embed-bitmaps, dvisvgm then replaces each such special with a base64
+%% data URI (<image xlink:href="data:image/png;base64,..."/>), making the output
+%% SVG fully self-contained and relocatable.
+%%
+%% WHY no \raise
+%% -------------
+%% The original \Ginclude@bitmap wraps the special in \raise\height\hbox{...}.
+%% That raise compensates for the SVG y-axis flip when using dvisvgm:raw, which
+%% places the image top-left at the current SVG coordinate (y increases down).
+%% Without the raise, the image would appear below the TeX baseline.
+%%
+%% \special{dvisvgm:img} follows TeX baseline convention: the reference point is
+%% the *bottom-left* corner of the image, matching the TeX baseline.  Adding
+%% \raise here would offset the image upward by its own height — exactly the
+%% wrong direction.  So we use a plain \hbox with no raise.
+%%
+%% WHY explicit "pt" units in dvisvgm:img
+%% ----------------------------------------
+%% The dvisvgm:img special expects dimensioned lengths: \special{dvisvgm:img W H file}.
+%% Without an explicit unit, dvisvgm attempts to parse the unit from the
+%% following characters; with a filename like "icons/foo.png" it reads "ic" and
+%% raises "invalid length unit: ic".  \strip@pt produces a bare number (e.g.
+%% "42.52"); appending "pt" gives the required "42.52pt".
+\if@anim@svgmode
+  \def\Ginclude@bitmap#1{%
+    \special{dvisvgm:bbox \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt transform}%
+    \hbox{%
+      \special{dvisvgm:img \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt #1}%
+    }%
+  }%
+\fi
+
 %% ── Animation ────────────────────────────────────────────────────────────────
 %%
 %% /anim/.cd keys:

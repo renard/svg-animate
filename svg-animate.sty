@@ -34,6 +34,7 @@
 %% Use it to conditionalize content: \reveal is suppressed when false,
 %% and \noanimate renders its argument only when false (static PDF).
 \newif\if@anim@svgmode
+\newif\if@anim@dvisvgm@old  %% true = dvisvgm < 3.4; set in SVG mode only
 %% Set by the /anim/noanimate key on \reveal to force rendering in PDF mode
 %% even when \noanimate is present in the animate body.
 \newif\if@anim@reveal@static
@@ -89,42 +90,76 @@
 %%     <svg ...><image width="W" height="H" xlink:href="file.png"/></svg>
 %%   </g>
 %%
-%% dvisvgm copies this raw fragment verbatim into the output SVG, leaving
-%% xlink:href as an *external* file reference.  The dvisvgm flag --embed-bitmaps
-%% only operates on \special{dvisvgm:img} specials — it has no effect on
-%% xlink:href attributes inside dvisvgm:raw fragments.
+%% dvisvgm copies this verbatim into the output SVG, leaving xlink:href as an
+%% external file reference.  The dvisvgm flag --embed-bitmaps only operates on
+%% \special{dvisvgm:img} specials — it has no effect on xlink:href attributes
+%% inside dvisvgm:raw fragments.
 %%
-%% We therefore redefine \Ginclude@bitmap to emit \special{dvisvgm:img} instead.
-%% With --embed-bitmaps, dvisvgm then replaces each such special with a base64
-%% data URI (<image xlink:href="data:image/png;base64,..."/>), making the output
-%% SVG fully self-contained and relocatable.
+%% VERSION REQUIREMENT: dvisvgm >= 3.4 (2024-07-24, TeX Live 2025).
+%% --embed-bitmaps support for dvisvgm:img was added in 3.4.  With earlier
+%% versions dvisvgm:img produces an external xlink:href regardless of
+%% --embed-bitmaps, so bitmaps remain as separate files.
 %%
-%% WHY no \raise
-%% -------------
-%% The original \Ginclude@bitmap wraps the special in \raise\height\hbox{...}.
-%% That raise compensates for the SVG y-axis flip when using dvisvgm:raw, which
-%% places the image top-left at the current SVG coordinate (y increases down).
-%% Without the raise, the image would appear below the TeX baseline.
+%% We detect the dvisvgm version at compile time (via io.popen in LuaTeX) and
+%% choose between two code paths:
 %%
-%% \special{dvisvgm:img} follows TeX baseline convention: the reference point is
-%% the *bottom-left* corner of the image, matching the TeX baseline.  Adding
-%% \raise here would offset the image upward by its own height — exactly the
-%% wrong direction.  So we use a plain \hbox with no raise.
+%%   dvisvgm >= 3.4  ->  override \Ginclude@bitmap to emit \special{dvisvgm:img}
+%%                        (no \raise; dvisvgm:img uses TeX bottom-left anchor).
+%%                        With --embed-bitmaps the output SVG is self-contained.
+%%
+%%   dvisvgm <  3.4  ->  keep the stock \Ginclude@bitmap (dvisvgm:raw + \raise).
+%%                        Bitmaps remain as external file references.
+%%                        A package warning is emitted at compile time.
+%%
+%% If the version cannot be detected (shell escape disabled), modern behaviour
+%% (>= 3.4) is assumed since TeX Live 2025+ is current.
+%%
+%% WHY no \raise in the dvisvgm:img path
+%% ---------------------------------------
+%% The stock \Ginclude@bitmap uses \raise\height\hbox{...} to compensate for
+%% the SVG top-left coordinate convention used by dvisvgm:raw ({?x},{?y}).
+%% \special{dvisvgm:img} uses the TeX bottom-left baseline convention instead,
+%% so no \raise is needed.  Adding \raise would shift the image UP by its own
+%% height — exactly the wrong direction.
 %%
 %% WHY explicit "pt" units in dvisvgm:img
 %% ----------------------------------------
-%% The dvisvgm:img special expects dimensioned lengths: \special{dvisvgm:img W H file}.
-%% Without an explicit unit, dvisvgm attempts to parse the unit from the
-%% following characters; with a filename like "icons/foo.png" it reads "ic" and
-%% raises "invalid length unit: ic".  \strip@pt produces a bare number (e.g.
-%% "42.52"); appending "pt" gives the required "42.52pt".
+%% Without an explicit unit, dvisvgm reads the next characters as the unit; a
+%% path like "icons/foo.png" causes it to read "ic", which is invalid.
+%% \strip@pt gives a bare number; appending "pt" produces e.g. "42.52pt".
 \if@anim@svgmode
-  \def\Ginclude@bitmap#1{%
-    \special{dvisvgm:bbox \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt transform}%
-    \hbox{%
-      \special{dvisvgm:img \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt #1}%
+  \ifdefined\directlua
+    \directlua{
+      local ok, f = pcall(io.popen, 'dvisvgm --version')
+      if ok and f then
+        local s = f:read('*a')
+        f:close()
+        local p = string.char(37)
+        local maj, min = s:match('dvisvgm (' ..p.. 'd+)' ..p.. '.(' ..p.. 'd+)')
+        if maj then
+          maj, min = tonumber(maj), tonumber(min)
+          if not (maj > 3 or (maj == 3 and min >= 4)) then
+            tex.print('\\@anim@dvisvgm@oldtrue')
+            texio.write_nl('(svg-animate) Warning: dvisvgm '
+              .. tostring(maj) .. '.' .. tostring(min)
+              .. ' < 3.4 detected -- --embed-bitmaps does not support'
+              .. ' dvisvgm:img in this version; bitmaps will remain as'
+              .. ' external file references.')
+          end
+        end
+      end
+    }
+  \fi
+  \if@anim@dvisvgm@old\else
+    %% dvisvgm >= 3.4 (or undetected): override \Ginclude@bitmap so that
+    %% --embed-bitmaps inlines bitmaps as base64 data URIs.
+    \def\Ginclude@bitmap#1{%
+      \special{dvisvgm:bbox \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt transform}%
+      \hbox{%
+        \special{dvisvgm:img \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt #1}%
+      }%
     }%
-  }%
+  \fi
 \fi
 
 %% ── Animation ────────────────────────────────────────────────────────────────

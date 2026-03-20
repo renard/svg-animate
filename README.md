@@ -74,6 +74,10 @@ dvisvgm --font-format=woff2 --optimize=all --bbox=min --embed-bitmaps diagram.dv
 > `\special{dvisvgm:img}`, the only special type that `--embed-bitmaps`
 > actually processes.  The stock driver uses `\special{dvisvgm:raw}`, which
 > `--embed-bitmaps` silently ignores.
+>
+> **Requires dvisvgm ≥ 3.4.**  Support for `--embed-bitmaps` on `dvisvgm:img`
+> specials was added in dvisvgm 3.4 (2024-07-24).  With earlier versions,
+> bitmaps remain as external file references regardless of `--embed-bitmaps`.
 
 Or simply run `make` inside the package directory to build `example.svg` and
 `doc.pdf`.
@@ -250,6 +254,8 @@ This is cleaner than setting four opacity keys to `1`.
 
 - PGF/TikZ ≥ 3.1.9 (for `\usetikzlibrary{animations}`)
 - `dvisvgm` ≥ 2.9 for SVG output
+- `dvisvgm` ≥ 3.4 for bitmap embedding (`--embed-bitmaps` with `dvisvgm:img`
+  was added in 3.4; earlier versions leave bitmaps as external file references)
 - Any modern LaTeX distribution (TeX Live 2022+, MiKTeX 22+)
 
 ## Documentation

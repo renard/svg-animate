@@ -116,6 +116,13 @@ only) to emit \verb|\special{dvisvgm:img W H file}| instead.  This is the
 special type that \texttt{--embed-bitmaps} does process, converting the file
 to a base64 data URI.
 
+\textbf{Version requirement.}
+Support for \texttt{--embed-bitmaps} on \verb|dvisvgm:img| specials was
+introduced in \textbf{dvisvgm~3.4} (2024-07-24, shipped with \TeX{}
+Live~2025).  With earlier versions, \verb|dvisvgm:img| produces an external
+\texttt{xlink:href} reference regardless of \texttt{--embed-bitmaps}: the
+override has no effect and bitmaps remain as separate files.
+
 The package detects the output mode via \texttt{\textbackslash pdfoutput}
 (defined by pdfTeX and LuaTeX):
 \begin{itemize}

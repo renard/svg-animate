@@ -79,24 +79,24 @@ dvisvgm --font-format=woff2 --optimize=all --bbox=min --embed-bitmaps diagram.dv
 > specials was added in dvisvgm 3.4 (2024-07-24).  With earlier versions,
 > bitmaps remain as external file references regardless of `--embed-bitmaps`.
 
-Or simply run `make` inside the package directory to build `example.svg` and
+Or simply run `make` inside the package directory to build `svg-animate-example.svg` and
 `doc.pdf`.
 
 ## Example — traffic light
 
-The included `example.tex` animates a traffic light.  Each coloured circle is
-its own step; the amber light uses a shorter `duration`.
+The included `svg-animate-example.tex` animates a traffic light.  Each
+coloured circle is its own step; the amber light uses a shorter `duration`.
 
-![Traffic light animation](example.svg)
+![Traffic light animation](svg-animate-example.svg)
 
-> Open `example.svg` directly in a browser to see the animation.
+> Open `svg-animate-example.svg` directly in a browser to see the animation.
 > GitHub's Markdown renderer may display it as a static image.
 
 ## Feature showcase
 
-The `test.tex` file exercises the main features side by side:
+The `svg-animate-test.tex` file exercises the main features side by side:
 
-![Feature showcase](test.svg)
+![Feature showcase](svg-animate-test.svg)
 
 | Column | Setting | What it shows |
 |---|---|---|

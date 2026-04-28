@@ -3,41 +3,41 @@ VERSION = $(shell grep '\\def\\svganimateversion' $(PACKAGE).sty | sed 's/.*{\(.
 
 .PHONY: all clean ctan
 
-all: example.svg test.svg svg-animate.pdf
+all: svg-animate-example.svg svg-animate-test.svg svg-animate.pdf
 
 ## Animated SVG ────────────────────────────────────────────────────────────────
 
-example.dvi: example.tex svg-animate.sty
+svg-animate-example.dvi: svg-animate-example.tex svg-animate.sty
 	latex $<
 	latex $<
 
-example.svg: example.dvi
+svg-animate-example.svg: svg-animate-example.dvi
 	dvisvgm --font-format=woff2 --optimize=all --bbox=min $< -o $@
 
 ## Static PDF of the example (included in svg-animate.pdf via \includegraphics) ────────
 
-example.pdf: example.tex svg-animate.sty
+svg-animate-example.pdf: svg-animate-example.tex svg-animate.sty
 	xelatex $<
 
 # ==========
 
-test.dvi: test.tex svg-animate.sty
+svg-animate-test.dvi: svg-animate-test.tex svg-animate.sty
 	latex $<
 	latex $<
 
-test.svg: test.dvi
+svg-animate-test.svg: svg-animate-test.dvi
 	dvisvgm --font-format=woff2 --optimize=all --bbox=papersize $< -o $@
 
-## Static PDF of the example (included in svg-animate.pdf via \includegraphics) ────────
+## Static PDF of the test (included in svg-animate.pdf via \includegraphics) ────────
 
-test.pdf: test.tex svg-animate.sty
+svg-animate-test.pdf: svg-animate-test.tex svg-animate.sty
 	xelatex $<
 
 
 # ==========
 ## Documentation PDF ──────────────────────────────────────────────────────────
 
-svg-animate.pdf: svg-animate.tex svg-animate.sty example.pdf
+svg-animate.pdf: svg-animate.tex svg-animate.sty svg-animate-example.pdf
 	xelatex $<
 	xelatex $<
 
@@ -57,6 +57,6 @@ clean:
 	rm -f *.aux *.log *.dvi *.toc *.out *.tcbtemp
 
 clean-all: clean
-	rm -f example*.svg example*.pdf test*.svg test*.pdf svg-animate.pdf
+	rm -f svg-animate-example*.svg svg-animate-example*.pdf svg-animate-test*.svg svg-animate-test*.pdf svg-animate.pdf
 	rm -f $(PACKAGE)-*.zip
 	rm -rf $(PACKAGE)-*/

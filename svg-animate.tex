@@ -76,6 +76,28 @@ step counting, absolute timing, and option cascading automatically.
 \end{itemize}
 
 %% ─────────────────────────────────────────────────────────────────────────────
+\section{Installation}
+
+Copy the \texttt{svg-animate} directory into a location where \TeX{} can find
+it.  Common user-local locations (no root access required):
+
+\begin{itemize}
+  \item \texttt{\$TEXMFHOME/tex/latex/}
+  \item \texttt{\$TEXHOME/tex/latex/}
+  \item \texttt{\textasciitilde/texmf/tex/latex/} (typical Linux default)
+  \item \texttt{\textasciitilde/Library/texmf/tex/latex/} (typical macOS default)
+\end{itemize}
+
+Alternatively, point \texttt{TEXINPUTS} at the directory containing
+\texttt{svg-animate.sty} before compiling:
+
+\begin{dispListing}
+TEXINPUTS="path/to/svg-animate//:$TEXINPUTS" latex diagram.tex
+\end{dispListing}
+
+The trailing \texttt{//} tells \TeX{} to search subdirectories recursively.
+
+%% ─────────────────────────────────────────────────────────────────────────────
 \section{Compilation pipeline}
 
 \begin{dispListing}

@@ -250,6 +250,25 @@ All `\reveal` elements are drawn at their natural opacity regardless of
 `inactive opacity`, `blink on/off opacity`, or any other per-element setting.
 This is cleaner than setting four opacity keys to `1`.
 
+## Installation
+
+Copy the `svg-animate` directory into a location where TeX can find it.
+Common user-local locations (no root access required):
+
+- `$TEXMFHOME/tex/latex/`
+- `$TEXHOME/tex/latex/`
+- `~/texmf/tex/latex/` (typical Linux default)
+- `~/Library/texmf/tex/latex/` (typical macOS default)
+
+Alternatively, point `TEXINPUTS` at the directory containing `svg-animate.sty`
+before compiling:
+
+```bash
+TEXINPUTS="path/to/svg-animate//:$TEXINPUTS" latex diagram.tex
+```
+
+The trailing `//` tells TeX to search subdirectories recursively.
+
 ## Requirements
 
 - PGF/TikZ ≥ 3.1.9 (for `\usetikzlibrary{animations}`)

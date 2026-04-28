@@ -283,7 +283,7 @@ The trailing `//` tells TeX to search subdirectories recursively.
 make doc.pdf
 ```
 
-Full documentation with key reference and examples: `svg-animate.pdf`.
+Full documentation with key reference, examples, and change log: `svg-animate.pdf`.
 
 ## Copyright
 

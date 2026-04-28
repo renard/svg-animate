@@ -517,4 +517,29 @@ browser for the full animation.
   fontupper       = \small,
 }
 
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Change log}
+
+\begin{description}
+  \item[\normalfont\texttt{v1.1} (2026/04/28)]\leavevmode
+    \begin{itemize}
+      \item Added installation instructions (user-local \texttt{texmf} paths
+            and \texttt{TEXINPUTS}).
+      \item Rewrote the \cs{Ginclude@bitmap} override to detect the
+            \texttt{dvisvgm} version at compile time: the override is now only
+            applied with \texttt{dvisvgm}~$\geq 3.4$, which is the version
+            that added \texttt{--embed-bitmaps} support for
+            \verb|dvisvgm:img| specials.
+      \item Renamed \texttt{example.tex} and \texttt{test.tex} to
+            \texttt{svg-animate-example.tex} and \texttt{svg-animate-test.tex}
+            to avoid filename collisions on shared \TeX{} search paths
+            (CTAN requirement).
+    \end{itemize}
+
+  \item[\normalfont\texttt{v1.0} (2026/03/18)]\leavevmode
+    \begin{itemize}
+    \item Initial CTAN release.
+    \end{itemize}
+\end{description}
+
 \end{document}

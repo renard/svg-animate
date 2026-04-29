@@ -47,6 +47,20 @@
 %% True when the animate environment's static=true key was set.
 %% When true, \reveal renders content at full opacity without keyframe animation.
 \newif\if@anim@envstatic
+%% True when the animate environment's erase=true key was set.
+%% When true (and loop=false), the TikZ modifier ,freeze, is appended to every
+%% keyframe list, which produces SMIL fill="freeze" in the SVG output.
+%% Because every keyframe sequence already ends at the inactive opacity (0 by
+%% default), freezing at that last value causes all elements to disappear
+%% cleanly when the one-shot animation finishes.
+%%   loop=false          → (default) SMIL fill omitted → fill="remove" applies
+%%                         → elements revert to base opacity (1) after animation
+%%   loop=false, erase   → ,freeze, → SMIL fill="freeze" → frozen at opI (0)
+%%                         → diagram is clean (empty) when animation ends
+%%   loop=true           → erase is ignored (repeating animations have no end)
+%% TikZ alias: ,forever, is identical to ,freeze, (both call
+%% \pgfanimationset{freeze at end}); we use ,freeze, as the less confusing name.
+\newif\if@anim@erase
 %%
 %% When running under latex in DVI mode (pdfoutput=0), configure three things:
 %%
@@ -188,6 +202,12 @@
   static/.default            = true,
                                %% true: all \reveal render at full opacity (no animation)
                                %% shorthand for the "show all steps simultaneously" idiom
+  erase/.is if               = @anim@erase,
+  erase/.default             = true,
+                               %% true (with loop=false): all \reveal elements are hidden
+                               %% when the one-shot animation finishes (SMIL fill="freeze"
+                               %% applied; every keyframe sequence ends at inactive opacity).
+                               %% Has no effect when loop=true.
 }
 
 %% ── Epsilon for instantaneous opacity snaps ──────────────────────────────────
@@ -908,7 +928,11 @@
   }
   %% Stay inactive until end; append repeats unless loop=false.
   \tl_put_right:Ne \l__anim_kf_tl { \animft@totale s = "\animft@opI" }
-  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { ,repeats, } \fi
+  \if@anim@loop
+    \tl_put_right:Nn \l__anim_kf_tl { ,repeats, }
+  \else
+    \if@anim@erase \tl_put_right:Nn \l__anim_kf_tl { ,freeze, } \fi
+  \fi
 
   %% ── 4. Emit TikZ scope with assembled keyframes ───────────────────────────
   %% \__anim_emit_mf_scope:Vn expands \l__anim_kf_tl to its string value before
@@ -965,10 +989,15 @@
       \animft@totale s = "\animft@opI"
     }
   }
-  %% Append repeats modifier outside the spec — \if@anim@loop is evaluated here
-  %% in expl3 code, not inside the TikZ animate= value (which would confuse
-  %% TikZ's animation parser and trigger "doesn't match its definition").
-  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { ,repeats, } \fi
+  %% Append animation modifier outside the spec — \if@anim@loop / \if@anim@erase
+  %% are evaluated here in expl3, not inside the TikZ animate= value (which
+  %% would confuse TikZ's animation parser and trigger "doesn't match its
+  %% definition").
+  \if@anim@loop
+    \tl_put_right:Nn \l__anim_kf_tl { ,repeats, }
+  \else
+    \if@anim@erase \tl_put_right:Nn \l__anim_kf_tl { ,freeze, } \fi
+  \fi
   \__anim_emit_mf_scope:Vn \l__anim_kf_tl { #1 }
 }
 
@@ -1070,7 +1099,11 @@
     \l__anim_we_tl s = "\animft@opI",
     \animft@totale s = "\animft@opI"
   }
-  \if@anim@loop \tl_put_right:Nn \l__anim_kf_tl { ,repeats, } \fi
+  \if@anim@loop
+    \tl_put_right:Nn \l__anim_kf_tl { ,repeats, }
+  \else
+    \if@anim@erase \tl_put_right:Nn \l__anim_kf_tl { ,freeze, } \fi
+  \fi
   %% Emit scope (PITFALL B: ':' at catcode 12 ensured by pre-ExplSyntaxOn helper)
   \__anim_emit_mf_scope:Vn \l__anim_kf_tl { #1 }
 }
@@ -1155,6 +1188,7 @@
   %% #2 = full body collected verbatim by +b, not yet executed
   \@anim@insidetrue                              %% guard: detect \animstep outside animate
   \@anim@envstaticfalse                          %% reset for each new environment
+  \@anim@erasefalse                              %% reset for each new environment
   \tikzset{ /anim/.cd, #1 }                      %% apply animate-level options globally
 
   %% PDF mode: scan the body for \noanimate before executing anything.

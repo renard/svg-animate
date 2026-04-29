@@ -294,7 +294,11 @@ of the cascade.
   Controls whether the animation repeats after reaching the last step.
   \begin{itemize}
     \item \texttt{true} (default) — the animation loops indefinitely.
-    \item \texttt{false} — the animation plays once and freezes on the last frame.
+    \item \texttt{false} — the animation plays once.  When finished, SMIL
+          \texttt{fill="remove"} (the browser default) takes effect: each
+          \cs{reveal} element reverts to its base opacity~(1 = fully
+          visible).  See the \docValue{erase} key to suppress all elements
+          at the end instead.
   \end{itemize}
   Can be set globally or per-environment.
 
@@ -309,17 +313,28 @@ of the cascade.
 \end{animate}
 \end{dispListing}
 
-  \medskip\noindent\textbf{Interaction with \cs{noanimate}:}
-  When the animation ends (\texttt{loop=false}), the SVG browser removes
-  all \texttt{<animate>} effects and reverts each element to its base
-  (unanimated) opacity --- which for \cs{reveal} elements is~1, i.e.\
-  fully visible.  If a \cs{noanimate} fallback is present in the body, it
-  therefore becomes visible once the animation has finished, giving the
-  diagram a natural static resting state.
+  \medskip\noindent\textbf{End-of-animation resting state.}
+  When the animation ends (\texttt{loop=false}), SMIL \texttt{fill="remove"}
+  causes all \cs{reveal} elements to revert to base opacity~1 (fully
+  visible).  Two patterns are available to control what the diagram looks
+  like after the animation:
+
+  \begin{itemize}
+    \item \textbf{\cs{noanimate} fallback} — place a static element with
+          \cs{noanimate} in the body.  It is ignored while the animation
+          plays, but becomes visible (at full opacity) once all
+          \texttt{<animate>} effects are removed.
+
+    \item \textbf{\docValue{erase} key} — mark each transient \cs{reveal}
+          with \texttt{erase}: those elements freeze at opacity~0 when the
+          animation ends.  A final \cs{reveal} without \texttt{erase}
+          reverts to opacity~1 and stays visible.
+  \end{itemize}
 
 \begin{dispListing}
 \begin{animate}[inactive opacity=0.08, loop=false]
-  %% Static resting state shown after the animation ends.
+  %% Static resting state shown after the animation ends (fill="remove"
+  %% makes it visible once the <animate> effects are removed).
   \noanimate{\fill[red!85!black] (0,2.2) circle[radius=0.85];}
   \reveal{\fill[green!65!black]  (0,-2.2) circle[radius=0.85];}
   \animstep
@@ -328,6 +343,59 @@ of the cascade.
   \reveal{\fill[red!85!black]    (0, 2.2) circle[radius=0.85];}
 \end{animate}
 \end{dispListing}
+\end{docKey}
+
+\begin{docKey}[anim]{erase}{(no value)}{default: not set}
+  When set together with \texttt{loop=false}, appends the TikZ modifier
+  \texttt{freeze} to every affected keyframe list, which produces SMIL
+  \texttt{fill="freeze"} in the SVG output.  Because every keyframe
+  sequence already ends at \docValue{inactive opacity} (0 by default),
+  each element freezes at opacity~0 when the one-shot animation finishes
+  --- the diagram returns to a clean, empty state.
+
+  \textbf{Has no effect} when \texttt{loop=true} (repeating animations
+  have no end state).
+
+  \medskip\noindent\textbf{Two usage levels:}
+  \begin{itemize}
+    \item \textbf{Environment level} ---
+          \verb|\begin{animate}[loop=false, erase]| --- all \cs{reveal}
+          elements in the body disappear when the animation ends.
+
+    \item \textbf{Per-element level} ---
+          \verb|\reveal[erase]{...}| --- only that element disappears;
+          \cs{reveal} elements \emph{without} \texttt{erase} revert to
+          base opacity~1 (visible) via the default \texttt{fill="remove"}.
+  \end{itemize}
+
+  The per-element form enables a common pattern for one-shot animations:
+  transient steps carry \texttt{erase} and vanish cleanly; a final
+  \cs{reveal} without \texttt{erase} remains visible as the permanent
+  end state.
+
+\begin{dispListing}
+%% Growing arrow: steps 1-10 show a growing line with a moving arrowhead
+%% (erase → disappear at end); step 11 is the final full arrow that stays.
+\begin{animate}[duration=0.1, loop=false]
+  \foreach \x in {1,...,10} {
+    \reveal[step=\x, erase]{%
+      \draw[arrow] (0,0) -- ($ (0,0)!\x/10!(5,5) $);
+    }
+  }
+  \reveal[step=11]{\draw[arrow] (0,0) -- (5,5);}
+  \animstep\animstep\animstep\animstep\animstep
+  \animstep\animstep\animstep\animstep\animstep
+\end{animate}
+\end{dispListing}
+
+  \medskip\noindent\textbf{Why \texttt{erase} rather than \texttt{freeze}.}
+  The TikZ modifier that produces \texttt{fill="freeze"} is named
+  \texttt{freeze} internally (and \texttt{forever} is its alias).  The
+  name \texttt{freeze} was deliberately \emph{not} exposed at the
+  \texttt{/anim/} key level because it is easily confused with
+  \texttt{loop=false} (``freezing the loop'').  The key \texttt{erase}
+  describes the \emph{visible effect} --- elements are erased from the
+  diagram when the animation ends --- rather than the SMIL mechanism.
 \end{docKey}
 
 \begin{docKey}[anim]{blink}{=\meta{seconds}}{no default}
@@ -521,6 +589,22 @@ browser for the full animation.
 \section{Change log}
 
 \begin{description}
+  \item[\normalfont\texttt{vX.X} (YYYY/MM/DD)]\leavevmode
+    \begin{itemize}
+      \item Added \docValue{erase} key (\texttt{/anim/.cd}).  When used
+            with \texttt{loop=false}, appends the TikZ \texttt{freeze}
+            modifier (SMIL \texttt{fill="freeze"}) to the keyframe list,
+            causing elements to freeze at \docValue{inactive opacity}~(0)
+            when the one-shot animation ends.  Can be set at environment
+            level (all elements erased) or per-\cs{reveal} (selective:
+            unmarked elements revert to opacity~1 and stay visible).
+      \item Clarified \texttt{loop=false} documentation: SMIL
+            \texttt{fill="remove"} is the browser default when no modifier
+            is emitted; elements revert to base opacity~1 after animation.
+            Added the two resting-state patterns (\cs{noanimate} fallback
+            vs \docValue{erase}).
+    \end{itemize}
+
   \item[\normalfont\texttt{v1.1} (2026/04/28)]\leavevmode
     \begin{itemize}
       \item Added installation instructions (user-local \texttt{texmf} paths

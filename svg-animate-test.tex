@@ -1,5 +1,6 @@
 \documentclass[border=20pt]{standalone}
 \usepackage{svg-animate}
+\usetikzlibrary{calc}
 
 %% ── Static housing (always visible, drawn outside animate) ───────────────────
 
@@ -133,4 +134,28 @@
   \end{tikzpicture}
 
 \end{tabular}
+
+\vspace{2em}
+
+%% ── \subanim test — growing line then persistent state ─────────────────────
+%%
+%% Outer step 1 (0–0.3 s): line grows A→B in 5 inner sub-steps of 0.06 s each.
+%% Outer step 2 (0.3–0.6 s): full line persists (separate \reveal[step=2]).
+%%
+\begin{tikzpicture}
+  \begin{animate}[duration=0.3, loop=false]
+    \subanim[steps=5]{
+      \foreach \x in {1,...,\subanimsteps} {
+        \reveal[step=\x]{
+          \draw[line width=2pt, red, ->]
+            (-2,0) -- ($(-2,0)!\x/\subanimsteps!(2,0)$);
+        }
+      }
+    }
+    \reveal[step=2]{\draw[line width=2pt, red, ->] (-2,0) -- (2,0);}
+    \animstep
+    %% outer step 2 — empty; persistent line shown via \reveal[step=2] above
+  \end{animate}
+\end{tikzpicture}
+
 \end{document}

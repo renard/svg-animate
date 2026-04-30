@@ -645,6 +645,8 @@
 \tikzset{
   /anim/step/.code  = { \tl_set:Nn \l__anim_step_spec_tl { #1 } },
   /anim/blink/.code = { \fp_set:Nn \l__anim_blink_period_fp { #1 } },
+  /anim/steps/.code = { \int_set:Nn \l__subanim_n_int { #1 } },
+                       %% number of equal inner sub-steps for \subanim
 }
 
 %% Generate the nVNTF variant of \regex_extract_once to allow passing the
@@ -668,6 +670,15 @@
 \tl_new:N   \l__anim_mend_tl        %% scratch: current merged window end
 \tl_new:N   \l__anim_next_tl        %% scratch: next window string
 \bool_new:N \l__anim_merge_bool     %% scratch: true = active merged window exists
+
+%% ── \subanim scratch variables ─────────────────────────────────────────────
+\int_new:N  \l__subanim_n_int           %% inner sub-step count (from steps=N)
+\fp_new:N   \l__subanim_outer_start_fp  %% absolute start of the outer time window
+\fp_new:N   \l__subanim_outer_end_fp    %% absolute end   of the outer time window
+\fp_new:N   \l__subanim_step_dur_fp     %% duration of one inner sub-step
+\seq_new:N  \l__subanim_saved_times_seq %% saved copy of \g__anim_step_times_seq
+\seq_new:N  \l__subanim_match_seq       %% scratch: regex captures
+\tl_new:N   \l__subanim_tmp_tl          %% scratch: timing-entry string ("start/end")
 
 %% \animstep[options] — step delimiter; [options] apply to all elements of the next step.
 %% When inside animate its body is collected verbatim (+b) so \animstep is consumed as
@@ -1108,6 +1119,166 @@
   \__anim_emit_mf_scope:Vn \l__anim_kf_tl { #1 }
 }
 
+%% ── \subanim — sub-animation within an outer step ──────────────────────────
+%%
+%% \subanim[options]{body}
+%%   Subdivides the current outer step (or the step range given by step=A-B)
+%%   into N equal inner sub-steps.  \g__anim_step_times_seq is temporarily
+%%   replaced with the inner timing table so that \reveal[step=k] inside body
+%%   refers to inner sub-step k, emitting keyframes at the correct absolute
+%%   times in the outer SVG timeline.
+%%
+%%   Options (/anim/.cd):
+%%     steps=N      number of equal inner sub-steps (default 1)
+%%     step=A       map to outer step A
+%%     step=A-B     map to outer steps A through B (contiguous range only)
+%%
+%%   \subanimsteps is defined to N inside body, so \foreach can use it:
+%%
+%%     \subanim[steps=10]{
+%%       \foreach \x in {1,...,\subanimsteps} {
+%%         \reveal[step=\x]{ \draw (C) -- ($(C)!\x/\subanimsteps!(S)$); }
+%%       }
+%%     }
+%%
+%%   erase=true is the default inside body: inner reveals freeze at inactive
+%%   opacity after their sub-step ends → nothing persists after \subanim.
+%%   The user provides a separate outer \reveal[step=K+1-N]{final state} for
+%%   the persistent result.  Override per element with \reveal[step=\x,erase=false].
+%%
+%%   PDF mode: inner reveals rendered as static (all sub-steps stacked).
+%%
+%%   Mechanism:
+%%     1. Determine outer [start,end] from step= or from outer step globals.
+%%     2. Save \g__anim_step_times_seq; build inner table (N entries).
+%%     3. Execute body (\reveal[step=k] reads inner table).
+%%     4. Restore outer table before \group_end:.
+%%
+%%
+%% \__subanim_parse_window:
+%%   Parses \l__anim_step_spec_tl ("A" or "A-B") and sets
+%%   \l__subanim_outer_start_fp / \l__subanim_outer_end_fp by looking up
+%%   the OUTER \g__anim_step_times_seq (which is still intact at call time).
+%%
+\cs_new_protected:Npn \__subanim_parse_window: {
+  %% ── 1. Parse "A-B" or single "A" ──────────────────────────────────────────
+  \regex_extract_once:nVNTF
+      { \A \s* (\d+) \s* - \s* (\d+) \s* \Z }
+      \l__anim_step_spec_tl \l__subanim_match_seq
+  {
+    \int_set:Nn \l_tmpa_int { \seq_item:Nn \l__subanim_match_seq { 2 } }
+    \int_set:Nn \l_tmpb_int { \seq_item:Nn \l__subanim_match_seq { 3 } }
+  } {
+    \regex_extract_once:nVNTF
+        { \A \s* (\d+) \s* \Z }
+        \l__anim_step_spec_tl \l__subanim_match_seq
+    {
+      \int_set:Nn \l_tmpa_int { \seq_item:Nn \l__subanim_match_seq { 2 } }
+      \int_set:Nn \l_tmpb_int { \l_tmpa_int }
+    } {
+      \PackageError{svg-animate}
+          {\string\subanim:~invalid~step=~spec~'\tl_use:N\l__anim_step_spec_tl'}
+          {For~\string\subanim,~step=~accepts~a~step~number~(step=3)~or~a
+           \MessageBreak contiguous~range~(step=2-5).~Comma~lists~are~not~supported.}
+    }
+  }
+  %% ── 2. Validate bounds ────────────────────────────────────────────────────
+  \int_compare:nNnT { \l_tmpa_int } < { 1 } {
+    \PackageError{svg-animate}
+        {\string\subanim~step=~start~(\int_use:N\l_tmpa_int)~is~out~of~range}
+        {Step~numbers~start~at~1.}
+  }
+  \int_compare:nNnT { \l_tmpb_int } > { \seq_count:N \g__anim_step_times_seq } {
+    \PackageError{svg-animate}
+        {\string\subanim~step=~end~(\int_use:N\l_tmpb_int)~exceeds~number~of~steps~(\seq_count:N\g__anim_step_times_seq)}
+        {This~animate~environment~has~\seq_count:N\g__anim_step_times_seq~step(s),~numbered~1~to~\seq_count:N\g__anim_step_times_seq.}
+  }
+  %% ── 3. Extract outer_start (from step A) and outer_end (from step B) ───────
+  %% Timing entries are "abs_start/abs_end" decimal strings.
+  \tl_set:Ne \l__subanim_tmp_tl
+      { \seq_item:Nn \g__anim_step_times_seq { \l_tmpa_int } }
+  \regex_extract_once:nVNT
+      { \A ([0-9.]+) \/ }
+      \l__subanim_tmp_tl \l__subanim_match_seq
+      { \fp_set:Nn \l__subanim_outer_start_fp
+            { \seq_item:Nn \l__subanim_match_seq { 2 } } }
+  \tl_set:Ne \l__subanim_tmp_tl
+      { \seq_item:Nn \g__anim_step_times_seq { \l_tmpb_int } }
+  \regex_extract_once:nVNT
+      { \/ ([0-9.]+) \Z }
+      \l__subanim_tmp_tl \l__subanim_match_seq
+      { \fp_set:Nn \l__subanim_outer_end_fp
+            { \seq_item:Nn \l__subanim_match_seq { 2 } } }
+}
+
+%% \__subanim_exec:nn {options} {body}
+%%
+\cs_new_protected:Npn \__subanim_exec:nn #1 #2 {
+  \group_begin:
+    %% Reset step spec and step count before applying options.
+    \tl_clear:N \l__anim_step_spec_tl
+    \int_set:Nn \l__subanim_n_int { 1 }
+    \tikzset{ /anim/.cd, #1 }
+    %%
+    %% ── 1. Determine outer time window ───────────────────────────────────────
+    \tl_if_empty:NTF \l__anim_step_spec_tl {
+      %% No step= given: use the current outer step's timing globals directly.
+      \fp_set_eq:NN \l__subanim_outer_start_fp \g__anim_step_start_fp
+      \fp_set_eq:NN \l__subanim_outer_end_fp   \g__anim_step_end_fp
+    } {
+      %% step= given: parse spec and look up in the outer timing table.
+      \__subanim_parse_window:
+    }
+    %%
+    %% ── 2. Validate steps=N ──────────────────────────────────────────────────
+    \int_compare:nNnT { \l__subanim_n_int } < { 1 } {
+      \PackageError{svg-animate}
+          {\string\subanim~steps=~must~be~>=~1}
+          {Provide~a~positive~integer~for~the~inner~sub-step~count.}
+    }
+    %%
+    %% ── 3. Build inner timing table ──────────────────────────────────────────
+    %% inner_dur = (outer_end - outer_start) / N
+    %% sub-step k → [outer_start+(k-1)*inner_dur,  outer_start+k*inner_dur]
+    \fp_set:Nn \l__subanim_step_dur_fp {
+      ( \l__subanim_outer_end_fp - \l__subanim_outer_start_fp )
+      / \l__subanim_n_int
+    }
+    %% Save outer table (local var → auto-restored at \group_end:).
+    %% The global \g__anim_step_times_seq is explicitly restored in step 6.
+    \seq_set_eq:NN \l__subanim_saved_times_seq \g__anim_step_times_seq
+    \seq_gclear:N  \g__anim_step_times_seq
+    \int_step_inline:nn { \l__subanim_n_int } {
+      \seq_gput_right:Ne \g__anim_step_times_seq {
+        \fp_to_decimal:n {
+          \l__subanim_outer_start_fp + ( ##1 - 1 ) * \l__subanim_step_dur_fp
+        }
+        /
+        \fp_to_decimal:n {
+          \l__subanim_outer_start_fp + ##1 * \l__subanim_step_dur_fp
+        }
+      }
+    }
+    %%
+    %% ── 4. Expose N as \subanimsteps; set default erase=true ─────────────────
+    %% \subanimsteps is a local \def — expands to the integer N inside \foreach.
+    %% \@anim@erasetrue makes inner reveals freeze at inactive opacity by default
+    %% so nothing from the sub-animation persists after the group finishes.
+    \edef\subanimsteps { \int_use:N \l__subanim_n_int }
+    \@anim@erasetrue
+    %%
+    %% ── 5. Execute body ──────────────────────────────────────────────────────
+    %% \reveal[step=k] inside reads \g__anim_step_times_seq (inner table) and
+    %% emits keyframes at the correct absolute times in the outer SVG timeline.
+    #2
+    %%
+    %% ── 6. Restore outer timing table ────────────────────────────────────────
+    %% Must happen BEFORE \group_end: while \l__subanim_saved_times_seq is
+    %% still accessible.  \seq_gset_eq:NN is global; unaffected by \group_end:.
+    \seq_gset_eq:NN \g__anim_step_times_seq \l__subanim_saved_times_seq
+  \group_end:
+}
+
 %% \reveal[options]{content}
 %%   Wraps content in an opacity animation.
 %%
@@ -1159,6 +1330,34 @@
       \fi                                                            %% end \if@anim@envstatic
     }
   \group_end:
+}
+
+%% \subanim[options]{body}
+%%   Must be used inside an animate environment.
+%%   SVG mode: runs \__subanim_exec:nn.
+%%   PDF mode: defines \subanimsteps and renders inner reveals as static
+%%             (all sub-steps stacked at full opacity — timing is not applied).
+%%
+\NewDocumentCommand \subanim { O{} +m } {
+  \if@anim@inside \else
+    \PackageError{svg-animate}
+        {\string\subanim\space used outside animate environment}
+        {%
+          \string\subanim\space must be used inside%
+          \MessageBreak \string\begin{animate}...\string\end{animate}.%
+        }%
+  \fi
+  \if@anim@svgmode
+    \__subanim_exec:nn { #1 } { #2 }
+  \else
+    \group_begin:
+      \int_set:Nn \l__subanim_n_int { 1 }
+      \tikzset{ /anim/.cd, #1 }
+      \edef\subanimsteps { \int_use:N \l__subanim_n_int }
+      \@anim@envstatictrue
+      #2
+    \group_end:
+  \fi
 }
 
 %% \noanimate{content}

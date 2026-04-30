@@ -267,6 +267,64 @@ elements: inner options override outer ones.
   defaults.
 \end{docCommand}
 
+\begin{docCommand}{subanim}{\oarg{options}\marg{body}}
+  Subdivides the \emph{current} outer step into \texttt{steps=\meta{N}}
+  equal sub-steps, executes \meta{body} with a temporary inner timing
+  table, then restores the outer table.  This creates a micro-animation
+  inside one outer step without altering the step structure visible to the
+  rest of the diagram.
+
+  Inside \meta{body}:
+  \begin{itemize}
+    \item \cs{subanimsteps} expands to \meta{N} — useful as the upper bound
+          of a \cs{foreach} loop.
+    \item \texttt{erase=true} is set by default so sub-step elements freeze
+          at \docValue{inactive opacity} when their sub-step ends: nothing
+          persists after the group.
+    \item \cs{reveal}\oarg{step=\meta{k}} refers to inner sub-step \meta{k}
+          ($1 \leq k \leq N$).
+  \end{itemize}
+
+  \medskip\noindent\textbf{Persistent state.}
+  To leave a permanent result after the group (e.g.\ a fully grown arrow),
+  place a \cs{reveal} \emph{outside} \cs{subanim}, targeting the outer
+  step that follows the group's window:
+
+\begin{dispListing}
+\begin{animate}[duration=0.3, loop=false]
+  %% Outer step 1: line grows A→B in 5 sub-steps of 0.06 s each.
+  \subanim[steps=5]{
+    \foreach \x in {1,...,\subanimsteps} {
+      \reveal[step=\x]{%
+        \draw[line width=2pt, red, ->]
+          (-2,0) -- ($(-2,0)!\x/\subanimsteps!(2,0)$);
+      }
+    }
+  }
+  %% step=2 starts immediately after the group ends → full arrow persists.
+  \reveal[step=2]{\draw[line width=2pt, red, ->] (-2,0) -- (2,0);}
+  \animstep
+  %% outer step 2 body — empty; persistent line shown via \reveal[step=2].
+\end{animate}
+\end{dispListing}
+
+  \medskip\noindent\textbf{Window selection.}
+  By default, \cs{subanim} uses the time window of the outer step in
+  which it appears in the source.  Pass \texttt{step=\meta{A}-\meta{B}} in
+  \oarg{options} to make the group span the combined window of outer steps
+  \meta{A} through~\meta{B}:
+
+\begin{dispListing}
+%% Group spans outer steps 1 and 2 (their combined duration).
+\subanim[steps=10, step=1-2]{...}
+\end{dispListing}
+
+  \textbf{PDF mode:} all sub-steps are rendered simultaneously at full
+  opacity (equivalent to \docValue{static}).
+
+  \cs{subanim} must appear inside an \env{animate} environment.
+\end{docCommand}
+
 \subsection{Keys}
 
 All keys live under the \texttt{/anim/.cd} path and can be set at any level
@@ -276,6 +334,34 @@ of the cascade.
   Duration of this step in seconds.  Can be set globally, per-environment,
   or per-step via \cs{animstep}\oarg{duration=\meta{N}}.  Has no effect when
   passed to \cs{reveal} (silently ignored).
+
+  \medskip\noindent\textbf{Setting the first step's duration independently.}
+  \cs{animstep}\oarg{duration=\meta{N}} sets the duration of the
+  \emph{following} step, so there is no preceding \cs{animstep} to use for
+  the first step.  To give step~1 a different duration without changing the
+  global default, write \texttt{[duration=\meta{N}]} as the very first token
+  in the animate body:
+
+\begin{dispListing}
+\begin{animate}[duration=2]     %% default = 2 s (steps 2, 3, …)
+  [duration=1]                  %% step 1 = 1 s
+  \reveal[step=1]{...}
+  \reveal[step=2-3]{...}
+  \animstep  \animstep  \animstep
+\end{animate}
+\end{dispListing}
+
+  This works because \cs{animstep}\oarg{duration=\meta{N}} places the token
+  sequence \texttt{[duration=\meta{N}]} at the start of the next segment;
+  writing it literally at the start of the body applies the same mechanism
+  to segment~1.
+\end{docKey}
+
+\begin{docKey}[anim]{steps}{=\meta{N}}{no default}
+  Used with \cs{subanim}: specifies the number of equal inner sub-steps
+  into which the outer step's time window is subdivided.  Must be a
+  positive integer $\geq 1$.  Inside the \cs{subanim} body the same
+  value is available as \cs{subanimsteps}.
 \end{docKey}
 
 \begin{docKey}[anim]{active opacity}{=\meta{value}}{initial: \texttt{1}}
@@ -591,6 +677,19 @@ browser for the full animation.
 \begin{description}
   \item[\normalfont\texttt{vX.X} (YYYY/MM/DD)]\leavevmode
     \begin{itemize}
+      \item Added \cs{subanim}\oarg{steps=\meta{N}}\marg{body}: subdivides
+            the current outer step into \meta{N} equal inner sub-steps,
+            enabling micro-animations (e.g.\ a growing line) within a single
+            outer step without altering the surrounding step structure.
+            Inside the body, \cs{subanimsteps} expands to \meta{N} and
+            \texttt{erase=true} is set by default so nothing persists after
+            the group.
+      \item Added \docValue{steps} key (\texttt{/anim/.cd}) for use with
+            \cs{subanim}.
+      \item Documented the \texttt{[duration=\meta{N}]} body-prefix technique
+            for setting the \emph{first} step's duration independently of the
+            global default (no preceding \cs{animstep} is available for
+            step~1).
       \item Added \docValue{erase} key (\texttt{/anim/.cd}).  When used
             with \texttt{loop=false}, appends the TikZ \texttt{freeze}
             modifier (SMIL \texttt{fill="freeze"}) to the keyframe list,

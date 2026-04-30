@@ -712,6 +712,15 @@ browser for the full animation.
             for setting the \emph{first} step's duration independently of the
             global default (no preceding \cs{animstep} is available for
             step~1).
+      \item Fixed \cs{Ginclude@bitmap} in LuaLaTeX: the path passed to
+            the \texttt{dvisvgm:img} special is now resolved to an
+            absolute path via \texttt{kpse.find\_file} +
+            \texttt{lfs.currentdir()} at compile time.  Previously,
+            \texttt{dvisvgm --embed-bitmaps} would locate the file via
+            kpathsea (no warning) but fail to open it for base64
+            encoding if its working directory differed from the LaTeX
+            working directory, producing an empty data URI.
+
       \item Added \docValue{erase} key (\texttt{/anim/.cd}).  When used
             with \texttt{loop=false}, appends the TikZ \texttt{freeze}
             modifier (SMIL \texttt{fill="freeze"}) to the keyframe list,

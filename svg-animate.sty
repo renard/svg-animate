@@ -170,7 +170,62 @@
     \def\Ginclude@bitmap#1{%
       \special{dvisvgm:bbox \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt transform}%
       \hbox{%
-        \special{dvisvgm:img \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt #1}%
+        \special{dvisvgm:img \strip@pt\Gin@req@width pt \strip@pt\Gin@req@height pt
+          %% Problem: graphicx passes the filename as given by the user
+          %% (e.g. "icons/foo.png"), which is a path RELATIVE to the LaTeX
+          %% working directory.  dvisvgm resolves this path relative to its
+          %% OWN working directory, which may differ (e.g. the caller runs
+          %% dvisvgm from the project root while LaTeX ran from src/).
+          %% Consequence: dvisvgm finds the file via kpathsea (no warning)
+          %% but fails to open it for base64 encoding, leaving an empty
+          %% data URI: xlink:href='data:image/png;base64,'.
+          %%
+          %% Fix (LuaLaTeX only): at compile time, use kpse.find_file() to
+          %% let kpathsea resolve the filename with the TEXINPUTS that LaTeX
+          %% was invoked with.  If the result is still relative, prepend the
+          %% absolute CWD (lfs.currentdir()) and normalise away any /../
+          %% components.  The special then carries an absolute path that
+          %% dvisvgm can open regardless of where it is invoked.
+          %%
+          %% Non-LuaLaTeX fallback (\else branch): emit the filename as-is.
+          %% dvisvgm must then be run from a directory where the relative
+          %% path resolves correctly (typically the same directory as LaTeX).
+          \ifdefined\directlua
+            \directlua{
+              %% Escape backslashes and quotes so the filename is safe
+              %% inside a Lua string literal.
+              local name = "\luaescapestring{#1}"
+
+              %% Ask kpathsea to locate the file using the same TEXINPUTS
+              %% search paths that LaTeX used.  Returns nil if not found.
+              local found = kpse.find_file(name)
+
+              if found and found:sub(1,1) ~= "/" then
+                %% kpse returned a relative path (relative to the LaTeX
+                %% CWD).  Prepend the absolute CWD to make it absolute.
+                require("lfs")           %% LuaFileSystem: always present in LuaTeX
+                found = lfs.currentdir() .. "/" .. found
+
+                %% Normalise the concatenated path by resolving every ".."
+                %% and "." component, so the result is a clean absolute path
+                %% without redundant segments (e.g. /a/b/../c -> /a/c).
+                local parts = {}
+                for p in found:gmatch("[^/]+") do
+                  if p == ".." then table.remove(parts)   %% go up one level
+                  elseif p ~= "." then table.insert(parts, p)  %% keep real segment
+                  end
+                end
+                found = "/" .. table.concat(parts, "/")
+              end
+
+              %% Emit the resolved absolute path into the \special argument.
+              %% Fall back to the original relative name if kpse returned nil.
+              tex.sprint(found or name)
+            }%
+          \else
+            #1%
+          \fi
+        }%
       }%
     }%
   \fi

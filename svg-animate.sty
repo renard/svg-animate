@@ -1215,10 +1215,17 @@
 %%
 \cs_new_protected:Npn \__subanim_exec:nn #1 #2 {
   \group_begin:
+    %% Save any step= inherited from an enclosing \reveal before clearing,
+    %% so \subanim can inherit the window without requiring an explicit step=.
+    \tl_set_eq:NN \l_tmpa_tl \l__anim_step_spec_tl
     %% Reset step spec and step count before applying options.
     \tl_clear:N \l__anim_step_spec_tl
     \int_set:Nn \l__subanim_n_int { 1 }
     \tikzset{ /anim/.cd, #1 }
+    %% If no step= was given explicitly, inherit from an enclosing \reveal.
+    \tl_if_empty:NT \l__anim_step_spec_tl {
+      \tl_set_eq:NN \l__anim_step_spec_tl \l_tmpa_tl
+    }
     %%
     %% ── 1. Determine outer time window ───────────────────────────────────────
     \tl_if_empty:NTF \l__anim_step_spec_tl {

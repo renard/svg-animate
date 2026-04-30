@@ -309,10 +309,32 @@ elements: inner options override outer ones.
 \end{dispListing}
 
   \medskip\noindent\textbf{Window selection.}
-  By default, \cs{subanim} uses the time window of the outer step in
-  which it appears in the source.  Pass \texttt{step=\meta{A}-\meta{B}} in
-  \oarg{options} to make the group span the combined window of outer steps
-  \meta{A} through~\meta{B}:
+  \cs{subanim} determines its outer time window in the following order:
+  \begin{enumerate}
+    \item An explicit \texttt{step=\meta{spec}} passed in \oarg{options}
+          always wins.
+    \item Otherwise, if \cs{subanim} is nested inside
+          \cs{reveal}\oarg{step=\meta{spec}}, that step specification is
+          inherited automatically --- no need to repeat it.
+    \item Otherwise, the time window of the step segment in which \cs{subanim}
+          appears in the source is used.
+  \end{enumerate}
+
+  The inheritance in case~2 means the common pattern of placing \cs{subanim}
+  directly inside a \cs{reveal} works without any extra options:
+
+\begin{dispListing}
+\reveal[step=2]{
+  \path (A) -- (B) node {label};   %% visible during step 2
+  \subanim[steps=5]{               %% inherits step=2 automatically
+    \foreach \x in {1,...,\subanimsteps} {
+      \reveal[step=\x]{\draw[->] (A) -- ($(A)!\x/\subanimsteps!(B)$);}
+    }
+  }
+}
+\end{dispListing}
+
+  Pass \texttt{step=\meta{A}-\meta{B}} explicitly to span a multi-step window:
 
 \begin{dispListing}
 %% Group spans outer steps 1 and 2 (their combined duration).

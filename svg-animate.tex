@@ -506,6 +506,63 @@ of the cascade.
   diagram when the animation ends --- rather than the SMIL mechanism.
 \end{docKey}
 
+\begin{docKey}[anim]{debug}{(no value)}{default: not set}
+  When set on the \texttt{animate} environment, draws a small overlay node
+  \emph{after} every step's content, so it is always rendered on top of all
+  other elements.  The node shows the 1-based step number and its duration:
+
+  \medskip\centerline{\texttt{N [Ds]}}
+
+  where \texttt{N} is the step index and \texttt{D} its duration in seconds.
+  This is useful during authoring to verify step numbering, timing, and
+  \cs{reveal} visibility.
+
+  \textbf{SVG mode only} --- in PDF mode (LuaLaTeX, pdfLaTeX) the key is
+  accepted but has no visible effect, because SMIL animations are not
+  generated and the node would always be visible at full opacity.
+
+  Has \textbf{no effect} when \docValue{static} is also set (the whole
+  environment renders all steps simultaneously without per-step animation).
+
+\begin{dispListing}
+\begin{tikzpicture}
+  \begin{animate}[duration=1, debug]
+    \reveal{\node at (0,0) {Step 1};}
+    \animstep
+    \reveal{\node at (0,-1) {Step 2};}
+  \end{animate}
+\end{tikzpicture}
+\end{dispListing}
+\end{docKey}
+
+\begin{docKey}[anim]{debug pos}{=\meta{coordinate}}{initial: \texttt{current bounding box.south east}}
+  TikZ coordinate where the debug overlay node is anchored.  Any TikZ
+  coordinate expression is accepted.
+
+\begin{dispListing}
+%% Place the debug label at the top-left instead.
+\begin{animate}[duration=1, debug, debug pos=current bounding box.north west,
+                debug style={anchor=north west, fill=cyan}]
+  ...
+\end{animate}
+\end{dispListing}
+\end{docKey}
+
+\begin{docKey}[anim]{debug style}{=\meta{TikZ options}}{initial: yellow box, red border}
+  TikZ node options applied to the debug overlay node.  Overrides the
+  entire default style; use \texttt{debug pos} separately to change only
+  the position.
+
+  The package default style is:
+  \begin{center}
+  \texttt{anchor=south east, font=\cs{small}\cs{ttfamily},}\\
+  \texttt{draw=red!80!black, fill=yellow!80, inner sep=2pt, rounded corners=1pt}
+  \end{center}
+
+  The value is reset to the default at the start of each new \texttt{animate}
+  environment, so custom styles do not bleed across environments.
+\end{docKey}
+
 \begin{docKey}[anim]{blink}{=\meta{seconds}}{no default}
   Makes the element blink during its active step: the opacity alternates
   between \docValue{blink on opacity} and \docValue{blink off opacity} at the
@@ -720,6 +777,14 @@ browser for the full animation.
             kpathsea (no warning) but fail to open it for base64
             encoding if its working directory differed from the LaTeX
             working directory, producing an empty data URI.
+
+      \item Added \docValue{debug} key (\texttt{/anim/.cd}).  When set on
+            the \texttt{animate} environment, draws a per-step overlay node
+            after each step's content (always on top) showing
+            \texttt{N [Ds]}: the 1-based step index and duration in seconds.
+            SVG mode only.  Companion keys \docValue{debug pos} and
+            \docValue{debug style} control the node's anchor coordinate and
+            TikZ styling.
 
       \item Added \docValue{erase} key (\texttt{/anim/.cd}).  When used
             with \texttt{loop=false}, appends the TikZ \texttt{freeze}

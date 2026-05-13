@@ -61,6 +61,18 @@
 %% TikZ alias: ,forever, is identical to ,freeze, (both call
 %% \pgfanimationset{freeze at end}); we use ,freeze, as the less confusing name.
 \newif\if@anim@erase
+%% True when the animate environment's debug=true key was set.
+%% When true, a per-step overlay node is drawn last (on top of everything) showing
+%% the step index and duration: "N [ds]".  Only active in SVG mode and non-static.
+\newif\if@anim@debug
+%% Default position for the debug overlay node.
+%% Can be overridden per-environment via debug pos=...
+\def\@anim@debug@pos{current bounding box.south east}
+%%
+%%
+%% The initial value of the debug node style is set AFTER \RequirePackage{tikz}
+%% below (see the \tikzset{@anim@debug@node/.style=...} call there) because
+%% \tikzset is undefined before TikZ is loaded.
 %%
 %% When running under latex in DVI mode (pdfoutput=0), configure three things:
 %%
@@ -92,6 +104,25 @@
 \RequirePackage{tikz}
 \RequirePackage{graphicx}
 \usetikzlibrary{animations}
+
+%% ── Debug overlay: initial named TikZ style ─────────────────────────────────
+%%
+%% Stored as a named TikZ style (@anim@debug@node) so that \node[@anim@debug@node]
+%% in the debug inject expands cleanly through pgfkeys.
+%%
+%% WHY a named style rather than a \def macro:
+%%   Using \def\@anim@debug@style{...} and \node[\@anim@debug@style] crashes with
+%%   "TeX capacity exceeded [input stack size=10000]" because pgfkeys reads the macro
+%%   as a key-name candidate; its expansion contains \small, which calls \@nomath,
+%%   which re-enters pgfkeys' unknown-key handler, creating an infinite loop.
+%%   A named style is resolved directly by pgfkeys without any such trickery.
+%%
+%% This initial definition provides the package default.  Each animate environment
+%% resets @anim@debug@node to this default before applying user options, so that
+%% a previous environment's debug style=... value does not bleed into the next one.
+\tikzset{@anim@debug@node/.style={%
+  anchor=south east, font=\small\ttfamily,
+  draw=red!80!black, fill=yellow!80, inner sep=2pt, rounded corners=1pt}}
 
 %% ── Bitmap inclusion override (SVG mode only) ────────────────────────────────
 %%
@@ -263,6 +294,18 @@
                                %% when the one-shot animation finishes (SMIL fill="freeze"
                                %% applied; every keyframe sequence ends at inactive opacity).
                                %% Has no effect when loop=true.
+  debug/.is if               = @anim@debug,
+  debug/.default             = true,
+                               %% true: emit a per-step overlay node (drawn last, on top)
+                               %% showing "N [ds]" (step index, duration).  SVG mode only.
+  debug pos/.code            = { \def\@anim@debug@pos{#1} },
+                               %% TikZ coordinate where the debug node is placed.
+                               %% Default: current bounding box.south east (see above).
+  debug style/.code          = { \tikzset{@anim@debug@node/.style={#1}} },
+                               %% TikZ node options for the debug label.
+                               %% Updates the named style @anim@debug@node.  Using a named
+                               %% TikZ style avoids the pgfkeys-macro-expansion crash (see
+                               %% comment on \tikzset{@anim@debug@node/.style=...} above).
 }
 
 %% ── Epsilon for instantaneous opacity snaps ──────────────────────────────────
@@ -665,6 +708,8 @@
 \fp_new:N   \g__anim_step_end_fp     %% end   time of the active step
 \fp_new:N   \g__anim_total_fp        %% total animation duration (all steps summed)
 \fp_new:N   \g__anim_step_dur_fp     %% scratch: duration of the current step
+\int_new:N  \g__anim_debug_step_int  %% 1-based step counter incremented in Pass 2;
+                                     %% used by the debug overlay to show the step number
 
 %% List of per-step token lists produced by splitting the body at \animstep.
 \seq_new:N  \l__anim_steps_seq
@@ -1450,6 +1495,21 @@
   \@anim@insidetrue                              %% guard: detect \animstep outside animate
   \@anim@envstaticfalse                          %% reset for each new environment
   \@anim@erasefalse                              %% reset for each new environment
+  \@anim@debugfalse                              %% reset for each new environment
+  %% Reset the debug node style to the package default before applying user options.
+  %% The named TikZ style @anim@debug@node is global; without this reset, a previous
+  %% environment's debug style= value would bleed into the current one.
+  %% This must happen BEFORE \tikzset{/anim/.cd, #1} so that debug style=... in the
+  %% user options can override the freshly-reset default.
+  %%
+  %% PITFALL (ExplSyntaxOn spaces): this code runs inside \ExplSyntaxOn, where actual
+  %% space characters have catcode 9 (ignored).  Multi-word TikZ key values like
+  %% "inner sep" or "south east" must therefore use ~ (active space) instead of a
+  %% literal space, or TeX would silently swallow them and produce "innersep",
+  %% "roundedcorners", "southeast", etc., which are all unknown keys.
+  \tikzset{@anim@debug@node/.style={%
+    anchor=south~east, font=\small\ttfamily,
+    draw=red!80!black, fill=yellow!80, inner~sep=2pt, rounded~corners=1pt}}%
   \tikzset{ /anim/.cd, #1 }                      %% apply animate-level options globally
 
   %% PDF mode: scan the body for \noanimate before executing anything.
@@ -1540,6 +1600,9 @@
   %%         We maintain a timing cursor (start) that advances step by step.
   %%
   \fp_gzero:N \g__anim_step_start_fp   %% cursor starts at t = 0.0
+  %% Step counter for the debug overlay.  Initialised to 1 here; incremented
+  %% after each iteration so the overlay node can display "N [ds]".
+  \int_gset:Nn \g__anim_debug_step_int { 1 }
   \seq_map_inline:Nn \l__anim_steps_seq {
     \tl_set:Nn \l__anim_seg_tl { ##1 }
     \__anim_pop_opts:NN \l__anim_step_opts_tl \l__anim_seg_tl
@@ -1565,10 +1628,59 @@
       %% so every \reveal inside will emit keyframes for the right time window.
       \tl_use:N \l__anim_seg_tl
       %%
+      %% ── Debug overlay ────────────────────────────────────────────────────
+      %% When debug=true is set on the animate environment, draw a small node
+      %% AFTER the step body (so it is always rendered on top of all other
+      %% elements) showing "N [ds]": step number and duration in seconds.
+      %%
+      %% Guards:
+      %%   \if@anim@debug    — key was set by the user
+      %%   \if@anim@svgmode  — only meaningful in animated SVG output
+      %%   \if@anim@envstatic\else — skip in static mode (all steps overlap)
+      \if@anim@debug
+        \if@anim@svgmode
+          \if@anim@envstatic \else
+            \group_begin:
+              %% Draw the debug label.  We intentionally do NOT call
+              %% \tikzset{step=N} here: \reveal clears \l__anim_step_spec_tl
+              %% unconditionally at its start, so any pre-set step= value
+              %% would be discarded.  Instead we rely on the current step
+              %% timing globals (\g__anim_step_start_fp / \g__anim_step_end_fp)
+              %% which are already correct for this loop iteration — exactly
+              %% what \reveal uses when no explicit step= spec is given.
+              %%
+              %% inactive opacity=0 : fully invisible in all other steps.
+              %% active  opacity=1  : fully visible in the current step.
+              %%
+              %% \@anim@debug@style and \@anim@debug@pos are plain \def macros
+              %% (NOT pgfkeys values).  Using \pgfkeysvalueof here caused an
+              %% "input stack size exceeded" infinite recursion when the keys
+              %% were declared with .initial inside \ExplSyntaxOn.  Macros are
+              %% safer and expand cleanly inside the \node[] options.
+              \reveal[ inactive~opacity=0, active~opacity=1 ]{
+                %% Use the named TikZ style @anim@debug@node.  This avoids the
+                %% pgfkeys macro-expansion crash that occurs with \node[\@anim@debug@style].
+                \node[ @anim@debug@node ]
+                  at ( \@anim@debug@pos )
+                  {
+                    %% Step index (e.g. "3")
+                    \int_use:N \g__anim_debug_step_int
+                    %% Duration: \fp_to_decimal:n returns a clean decimal
+                    %% string ("2", "0.5", …) without trailing zeros.
+                    ~[ \fp_to_decimal:n { \g__anim_step_dur_fp } s ]
+                  };
+              }
+            \group_end:
+          \fi
+        \fi
+      \fi
+      %%
       %% \fp_gset_eq:NN  a  b  — set a = b  (both are FP variables).
       %% Advance the cursor: next step starts where this one ended.
       %% This is global, so it survives the upcoming \group_end:.
       \fp_gset_eq:NN \g__anim_step_start_fp \g__anim_step_end_fp
+      %% Advance debug step counter (global: survives \group_end:).
+      \int_gincr:N \g__anim_debug_step_int
     \group_end:
   }
 } { \@anim@insidefalse }

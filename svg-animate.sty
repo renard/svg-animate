@@ -63,7 +63,7 @@
 \newif\if@anim@erase
 %% True when the animate environment's debug=true key was set.
 %% When true, a per-step overlay node is drawn last (on top of everything) showing
-%% the step index and duration: "N [ds]".  Only active in SVG mode and non-static.
+%% the step index, total, and duration: "k/N [ds]".  Only active in SVG mode and non-static.
 \newif\if@anim@debug
 %% Default position for the debug overlay node.
 %% Can be overridden per-environment via debug pos=...
@@ -709,7 +709,7 @@
 \fp_new:N   \g__anim_total_fp        %% total animation duration (all steps summed)
 \fp_new:N   \g__anim_step_dur_fp     %% scratch: duration of the current step
 \int_new:N  \g__anim_debug_step_int  %% 1-based step counter incremented in Pass 2;
-                                     %% used by the debug overlay to show the step number
+                                     %% used by the debug overlay to show "k/N [ds]"
 
 %% List of per-step token lists produced by splitting the body at \animstep.
 \seq_new:N  \l__anim_steps_seq
@@ -1631,7 +1631,7 @@
       %% ── Debug overlay ────────────────────────────────────────────────────
       %% When debug=true is set on the animate environment, draw a small node
       %% AFTER the step body (so it is always rendered on top of all other
-      %% elements) showing "N [ds]": step number and duration in seconds.
+      %% elements) showing "k/N [ds]": current step, total steps, duration in seconds.
       %%
       %% Guards:
       %%   \if@anim@debug    — key was set by the user
@@ -1663,8 +1663,9 @@
                 \node[ @anim@debug@node ]
                   at ( \@anim@debug@pos )
                   {
-                    %% Step index (e.g. "3")
+                    %% Step index / total (e.g. "3/5")
                     \int_use:N \g__anim_debug_step_int
+                    / \seq_count:N \g__anim_step_times_seq
                     %% Duration: \fp_to_decimal:n returns a clean decimal
                     %% string ("2", "0.5", …) without trailing zeros.
                     ~[ \fp_to_decimal:n { \g__anim_step_dur_fp } s ]

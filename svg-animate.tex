@@ -509,11 +509,13 @@ of the cascade.
 \begin{docKey}[anim]{debug}{(no value)}{default: not set}
   When set on the \texttt{animate} environment, draws a small overlay node
   \emph{after} every step's content, so it is always rendered on top of all
-  other elements.  The node shows the 1-based step number and its duration:
+  other elements.  The node shows the current step, the total number of steps, and the
+  step duration:
 
-  \medskip\centerline{\texttt{N [Ds]}}
+  \medskip\centerline{\texttt{k/N [Ds]}}
 
-  where \texttt{N} is the step index and \texttt{D} its duration in seconds.
+  where \texttt{k} is the 1-based step index, \texttt{N} the total number
+  of steps, and \texttt{D} the duration in seconds.
   This is useful during authoring to verify step numbering, timing, and
   \cs{reveal} visibility.
 
@@ -781,7 +783,8 @@ browser for the full animation.
       \item Added \docValue{debug} key (\texttt{/anim/.cd}).  When set on
             the \texttt{animate} environment, draws a per-step overlay node
             after each step's content (always on top) showing
-            \texttt{N [Ds]}: the 1-based step index and duration in seconds.
+            \texttt{k/N [Ds]}: the 1-based step index, total step count,
+            and duration in seconds.
             SVG mode only.  Companion keys \docValue{debug pos} and
             \docValue{debug style} control the node's anchor coordinate and
             TikZ styling.

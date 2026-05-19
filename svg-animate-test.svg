@@ -290,7 +290,7 @@ text.f3 {font-family:cmsy10;font-size:9.96264px}
 </g>
 </g>
 <g transform='matrix(.996264 0 0 -.996264 417.608817 101.902473)' fill='#000' stroke='#000' stroke-width='0.4'>
-<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='0.599' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.09848;0.10017;1.0' values='1;1;0;0' xlink:href='#pgf22'/>
+<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='5.999' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.09985;0.10002;1.0' values='1;1;0;0' xlink:href='#pgf22'/>
 <g id='pgf22'>
 <g stroke-width='2.0' fill='#f00' stroke='#f00'>
 <path d='M-56.90549 0H-35.60364' fill='none'/>
@@ -299,7 +299,7 @@ text.f3 {font-family:cmsy10;font-size:9.96264px}
  </g>
 </g>
 </g>
-<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='0.599' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.09848;0.10017;0.19865;0.20035;1.0' values='0;0;1;1;0;0' xlink:href='#pgf23'/>
+<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='5.999' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.09985;0.10002;0.19987;0.20004;1.0' values='0;0;1;1;0;0' xlink:href='#pgf23'/>
 <g id='pgf23'>
 <g stroke-width='2.0' fill='#f00' stroke='#f00'>
 <path d='M-56.90549 0H-12.8418' fill='none'/>
@@ -308,7 +308,7 @@ text.f3 {font-family:cmsy10;font-size:9.96264px}
  </g>
 </g>
 </g>
-<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='0.599' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.19865;0.20035;0.29883;0.30052;1.0' values='0;0;1;1;0;0' xlink:href='#pgf24'/>
+<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='5.999' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.19987;0.20004;0.2999;0.30006;1.0' values='0;0;1;1;0;0' xlink:href='#pgf24'/>
 <g id='pgf24'>
 <g stroke-width='2.0' fill='#f00' stroke='#f00'>
 <path d='M-56.90549 0H9.92004' fill='none'/>
@@ -317,7 +317,7 @@ text.f3 {font-family:cmsy10;font-size:9.96264px}
  </g>
 </g>
 </g>
-<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='0.599' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.29883;0.30052;0.39903;0.40071;1.0' values='0;0;1;1;0;0' xlink:href='#pgf25'/>
+<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='5.999' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.2999;0.30006;0.39992;0.40009;1.0' values='0;0;1;1;0;0' xlink:href='#pgf25'/>
 <g id='pgf25'>
 <g stroke-width='2.0' fill='#f00' stroke='#f00'>
 <path d='M-56.90549 0H32.68188' fill='none'/>
@@ -326,7 +326,7 @@ text.f3 {font-family:cmsy10;font-size:9.96264px}
  </g>
 </g>
 </g>
-<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='0.599' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.39903;0.40071;0.4992;0.50089;1.0' values='0;0;1;1;0;0' xlink:href='#pgf26'/>
+<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='5.999' fill='freeze' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.39992;0.40009;0.49995;0.50012;1.0' values='0;0;1;1;0;0' xlink:href='#pgf26'/>
 <g id='pgf26'>
 <g stroke-width='2.0' fill='#f00' stroke='#f00'>
 <path d='M-56.90549 0H55.44548' fill='none'/>
@@ -335,7 +335,7 @@ text.f3 {font-family:cmsy10;font-size:9.96264px}
  </g>
 </g>
 </g>
-<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='0.599' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.4992;0.50089;1.0;1.0;1.0' values='0;0;1;1;0;0' xlink:href='#pgf27'/>
+<animate attributeName='opacity' begin='0.0s' calcMode='spline' dur='5.999' keySplines='0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1;0 0 1 1' keyTimes='0.0;0.49995;0.50012;1.0;1.0;1.0' values='0;0;1;1;0;0' xlink:href='#pgf27'/>
 <g id='pgf27'>
 <g stroke-width='2.0' fill='#f00' stroke='#f00'>
 <path d='M-56.90549 0H55.44548' fill='none'/>

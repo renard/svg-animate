@@ -578,9 +578,12 @@ of the cascade.
   If the step duration is not an exact multiple of $\meta{seconds}/2$, the
   last partial half-period is included and cut at the step boundary.
 
-  \textbf{Note:} \texttt{blink} and \texttt{step} are mutually exclusive.
-  When both are specified, \texttt{blink} wins, \texttt{step} is ignored,
-  and a \texttt{PackageWarning} is issued.
+  \textbf{Combining \texttt{blink} with \texttt{step}.}
+  When both keys are given, the element blinks during the window specified
+  by \texttt{step} rather than the current source step.  Only a single step
+  (\texttt{step=N}) or a contiguous range (\texttt{step=A-B}) is accepted;
+  comma-list specs (\texttt{step=\{1,3\}}) raise an error because a blink
+  pattern cannot span non-contiguous windows.
 
 \begin{dispListing}
 \begin{animate}[duration=2, inactive opacity=0.15]

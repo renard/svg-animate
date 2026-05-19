@@ -736,6 +736,11 @@
 %% Set by the /anim/blink key; reset to 0 at the top of each \reveal group.
 \fp_new:N  \l__anim_blink_period_fp
 \fp_new:N  \l__anim_blink_h_fp       %% scratch: half-period = blink_period / 2
+%% Blink window [ws, we]: the time interval during which the element blinks.
+%% Set by \reveal before calling \__anim_reveal_blink:n — either from the current
+%% step globals (no step= given) or from the timing table (step= given).
+\fp_new:N  \l__anim_blink_ws_fp
+\fp_new:N  \l__anim_blink_we_fp
 
 %% step= spec for the current \reveal call (empty = use current step).
 %% Set by the /anim/step key; cleared at the top of each \reveal group.
@@ -1147,9 +1152,12 @@
   %% Total duration and epsilon-before-total
   \tl_set:Ne \l__anim_dur_tl { \fp_to_decimal:N \g__anim_total_fp }
   \pgfmathsetmacro\animft@totale { \l__anim_dur_tl - \anim@eps }
-  %% Step bounds as decimal strings (for keyframe timestamps)
-  \tl_set:Ne \l__anim_ws_tl { \fp_to_decimal:N \g__anim_step_start_fp }  %% s
-  \tl_set:Ne \l__anim_we_tl { \fp_to_decimal:N \g__anim_step_end_fp   }  %% e
+  %% Step bounds as decimal strings (for keyframe timestamps).
+  %% Read from \l__anim_blink_ws_fp / \l__anim_blink_we_fp, which are set by
+  %% \reveal before calling this function (either from the current step globals
+  %% or from the timing table when step= is also given).
+  \tl_set:Ne \l__anim_ws_tl { \fp_to_decimal:N \l__anim_blink_ws_fp }  %% s
+  \tl_set:Ne \l__anim_we_tl { \fp_to_decimal:N \l__anim_blink_we_fp }  %% e
   %% Half-period h = period / 2
   \fp_set:Nn \l__anim_blink_h_fp { \l__anim_blink_period_fp / 2 }
   %% n_h = floor((e - s) / h): number of complete half-periods in the step.
@@ -1157,14 +1165,14 @@
   %% (handles the case where the step is shorter than one full period).
   \int_set:Nn \l_tmpa_int {
     \fp_to_int:n { floor(
-      ( \g__anim_step_end_fp - \g__anim_step_start_fp ) / \l__anim_blink_h_fp
+      ( \l__anim_blink_we_fp - \l__anim_blink_ws_fp ) / \l__anim_blink_h_fp
     ) }
   }
   \int_compare:nNnT { \l_tmpa_int } < { 1 } { \int_set:Nn \l_tmpa_int { 1 } }
   %% Build keyframe token list
   \tl_clear:N \l__anim_kf_tl
   %% Initial inactive phase: hold opI from 0 to (s - ε), if s > 0.
-  \fp_compare:nNnT { \g__anim_step_start_fp } > { 0 } {
+  \fp_compare:nNnT { \l__anim_blink_ws_fp } > { 0 } {
     \pgfmathsetmacro\animft@starte { \l__anim_ws_tl - \anim@eps }
     \tl_put_right:Ne \l__anim_kf_tl {
       0s = "\animft@opI",
@@ -1179,13 +1187,13 @@
   \int_step_inline:eeen { 0 } { 1 } { \int_use:N \l_tmpa_int } {
     %% t_start = s + k*h      (decimal string via FP)
     \tl_set:Ne \l__anim_mstart_tl {
-      \fp_to_decimal:n { \g__anim_step_start_fp + ##1 * \l__anim_blink_h_fp }
+      \fp_to_decimal:n { \l__anim_blink_ws_fp + ##1 * \l__anim_blink_h_fp }
     }
     %% t_end = min(s + (k+1)*h, e)   — caps the last half-period at the step boundary
     \tl_set:Ne \l__anim_mend_tl {
       \fp_to_decimal:n {
-        min( \g__anim_step_start_fp + ( ##1 + 1 ) * \l__anim_blink_h_fp ,
-             \g__anim_step_end_fp )
+        min( \l__anim_blink_ws_fp + ( ##1 + 1 ) * \l__anim_blink_h_fp ,
+             \l__anim_blink_we_fp )
       }
     }
     %% Epsilon before t_end
@@ -1386,6 +1394,64 @@
   \group_end:
 }
 
+%% \__anim_reveal_blink_step:n {content}
+%%   Called by \reveal when both blink= and step= are set.
+%%   Parses \l__anim_step_spec_tl (single step "N" or contiguous range "A-B"),
+%%   looks up the corresponding time window in \g__anim_step_times_seq, stores
+%%   the result in \l__anim_blink_ws_fp / \l__anim_blink_we_fp, then calls
+%%   \__anim_reveal_blink:n.
+%%
+%%   Comma-list step= specs (e.g. step={1,3}) are not supported with blink=.
+%%   The element should blink across one contiguous window; a comma list would
+%%   require interleaved inactive/blink phases which are not representable as
+%%   a single monotone keyframe sequence.  Using blink= with a comma-list step=
+%%   raises a package error and falls back to the current step globals.
+%%
+\cs_new_protected:Npn \__anim_reveal_blink_step:n #1 {
+  %% Reject comma lists.
+  \tl_if_in:NnTF \l__anim_step_spec_tl { , } {
+    \PackageError{svg-animate}
+      {blink=~combined~with~step=:~comma~lists~are~not~supported}
+      {blink=~requires~a~single~step~(step=N)~or~a~contiguous~range~(step=A-B).
+       \MessageBreak Comma~lists~(step={1,3})~cannot~be~used~with~blink=.}
+    \fp_set_eq:NN \l__anim_blink_ws_fp \g__anim_step_start_fp
+    \fp_set_eq:NN \l__anim_blink_we_fp \g__anim_step_end_fp
+  } {
+    %% Try "A-B" first, then single "A".
+    \regex_extract_once:nVNTF
+        { \A \s* (\d+) \s* - \s* (\d+) \s* \Z }
+        \l__anim_step_spec_tl \l__anim_match_seq {
+      \int_set:Nn \l_tmpa_int { \seq_item:Nn \l__anim_match_seq { 2 } }
+      \int_set:Nn \l_tmpb_int { \seq_item:Nn \l__anim_match_seq { 3 } }
+    } {
+      \regex_extract_once:nVNTF
+          { \A \s* (\d+) \s* \Z }
+          \l__anim_step_spec_tl \l__anim_match_seq {
+        \int_set:Nn \l_tmpa_int { \seq_item:Nn \l__anim_match_seq { 2 } }
+        \int_set:Nn \l_tmpb_int { \l_tmpa_int }
+      } {
+        \PackageError{svg-animate}
+          {blink=~with~step=:~invalid~spec~`\tl_use:N\l__anim_step_spec_tl'}
+          {Use~step=N~or~step=A-B~with~blink=.}
+        \fp_set_eq:NN \l__anim_blink_ws_fp \g__anim_step_start_fp
+        \fp_set_eq:NN \l__anim_blink_we_fp \g__anim_step_end_fp
+      }
+    }
+    %% Look up start from step A and end from step B in the timing table.
+    \tl_set:Ne \l__anim_dur_tl { \seq_item:Nn \g__anim_step_times_seq { \l_tmpa_int } }
+    \regex_extract_once:nVNT
+        { \A ([0-9.]+) \/ } \l__anim_dur_tl \l__anim_match_seq {
+      \fp_set:Nn \l__anim_blink_ws_fp { \seq_item:Nn \l__anim_match_seq { 2 } }
+    }
+    \tl_set:Ne \l__anim_dur_tl { \seq_item:Nn \g__anim_step_times_seq { \l_tmpb_int } }
+    \regex_extract_once:nVNT
+        { \/ ([0-9.]+) \Z } \l__anim_dur_tl \l__anim_match_seq {
+      \fp_set:Nn \l__anim_blink_we_fp { \seq_item:Nn \l__anim_match_seq { 2 } }
+    }
+  }
+  \__anim_reveal_blink:n { #1 }
+}
+
 %% \reveal[options]{content}
 %%   Wraps content in an opacity animation.
 %%
@@ -1417,14 +1483,15 @@
       %% static mode: render content at full opacity without any keyframe animation.
       \if@anim@envstatic #2 \else
       \fp_compare:nNnTF { \l__anim_blink_period_fp } > { 0 } {
-        %% blink= set: oscillate during the current step.
-        %% Warn if step= was also given — the combination is undefined and blink= wins.
-        \tl_if_empty:NF \l__anim_step_spec_tl {
-          \PackageWarning{svg-animate}
-            {blink= and step= are mutually exclusive;\MessageBreak
-             blink= takes priority; step= is ignored}
+        \tl_if_empty:NTF \l__anim_step_spec_tl {
+          %% No step= spec: blink window = current step globals.
+          \fp_set_eq:NN \l__anim_blink_ws_fp \g__anim_step_start_fp
+          \fp_set_eq:NN \l__anim_blink_we_fp \g__anim_step_end_fp
+          \__anim_reveal_blink:n { #2 }
+        } {
+          %% step= also set: parse the spec and blink during that window.
+          \__anim_reveal_blink_step:n { #2 }
         }
-        \__anim_reveal_blink:n { #2 }
       } {
         \tl_if_empty:NTF \l__anim_step_spec_tl {
           %% No step= spec: single window from current step globals (existing behaviour).

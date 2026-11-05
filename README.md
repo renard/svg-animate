@@ -79,8 +79,8 @@ dvisvgm --font-format=woff2 --optimize=all --bbox=min --embed-bitmaps diagram.dv
 > specials was added in dvisvgm 3.4 (2024-07-24).  With earlier versions,
 > bitmaps remain as external file references regardless of `--embed-bitmaps`.
 
-Or simply run `make` inside the package directory to build `svg-animate-example.svg` and
-`doc.pdf`.
+Or simply run `make` inside the package directory to build `svg-animate-example.svg`
+and `svg-animate.pdf`.
 
 ## Example — traffic light
 
@@ -280,7 +280,8 @@ The trailing `//` tells TeX to search subdirectories recursively.
 ## Documentation
 
 ```bash
-make doc.pdf
+make svg-animate.pdf   # build the documentation PDF
+make check             # list overfull hboxes >= 5pt (fails if any)
 ```
 
 Full documentation with key reference, examples, and change log: `svg-animate.pdf`.

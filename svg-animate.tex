@@ -8,6 +8,14 @@
 %% tcolorbox documentation library does not define \env; use \texttt formatting.
 \newcommand{\env}[1]{\texttt{#1}}
 
+\usepackage{fvextra}
+%% Inline \Verb code must wrap instead of overflowing the page margin.
+\fvinlineset{breaklines, breakanywhere,
+             breakanywheresymbolpre={}, breakafter={=,/,-,:,.,\},\,,}}
+%% Short inline \Verb runs are atomic and can crowd a line with no break
+%% point left.  A little extra stretch avoids the residual overfull hbox.
+\emergencystretch = 2em
+
 \usepackage{hyperref}
 \hypersetup{
   colorlinks = true,
@@ -116,7 +124,7 @@ xelatex diagram.tex
 \subsection{Embedding bitmap images}
 
 If the diagram includes PNG or JPEG images (e.g.\ via \cs{includegraphics}),
-pass \texttt{--embed-bitmaps} to \texttt{dvisvgm} to produce a fully
+pass \Verb|--embed-bitmaps| to \texttt{dvisvgm} to produce a fully
 self-contained SVG\@.  Each bitmap is then inlined as a base64 data URI
 rather than an external file reference, so the SVG can be moved or published
 independently of the source directory.
@@ -127,21 +135,24 @@ dvisvgm --font-format=woff2 --optimize=all --bbox=min \
 \end{dispListing}
 
 \textbf{Why a driver override is needed.}
-The stock \texttt{graphicx} dvisvgm driver (\texttt{graphics-def/dvisvgm.def})
-implements bitmap inclusion via \verb|\special{dvisvgm:raw}|, injecting a
-literal \texttt{<image xlink:href="file.png"/>} fragment.  \texttt{dvisvgm}
+The stock \texttt{graphicx} dvisvgm driver (\Verb|graphics-def/dvisvgm.def|)
+implements bitmap inclusion via \Verb|\special{dvisvgm:raw}|, injecting a
+literal \Verb|<image xlink:href="file.png"/>| fragment.  \texttt{dvisvgm}
 copies this verbatim into the output SVG, leaving an external reference that
-\texttt{--embed-bitmaps} does not process.
+\Verb|--embed-bitmaps| does not process.
 
 \texttt{svg-animate} therefore redefines \cs{Ginclude@bitmap} (in SVG mode
-only) to emit \verb|\special{dvisvgm:img W H file}| instead.  This is the
-special type that \texttt{--embed-bitmaps} does process, converting the file
-to a base64 data URI.
+only) to emit a different special instead:
+
+\smallskip\centerline{\Verb|\special{dvisvgm:img W H file}|}\smallskip
+
+This is the special type that \Verb|--embed-bitmaps| does process,
+converting the file to a base64 data URI.
 
 \textbf{Version requirement.}
-Support for \texttt{--embed-bitmaps} on \verb|dvisvgm:img| specials was
+Support for \Verb|--embed-bitmaps| on \Verb|dvisvgm:img| specials was
 introduced in \textbf{dvisvgm~3.4} (2024-07-24, shipped with \TeX{}
-Live~2025).  With earlier versions, \verb|dvisvgm:img| produces an external
+Live~2025).  With earlier versions, \Verb|dvisvgm:img| produces an external
 \texttt{xlink:href} reference regardless of \texttt{--embed-bitmaps}: the
 override has no effect and bitmaps remain as separate files.
 
@@ -276,7 +287,7 @@ elements: inner options override outer ones.
 
   Inside \meta{body}:
   \begin{itemize}
-    \item \cs{subanimsteps} expands to \meta{N} — useful as the upper bound
+    \item \cs{subanimsteps} expands to \meta{N}, useful as the upper bound
           of a \cs{foreach} loop.
     \item \texttt{erase=true} is set by default so sub-step elements freeze
           at \docValue{inactive opacity} when their sub-step ends: nothing
@@ -304,7 +315,7 @@ elements: inner options override outer ones.
   %% step=2 starts immediately after the group ends → full arrow persists.
   \reveal[step=2]{\draw[line width=2pt, red, ->] (-2,0) -- (2,0);}
   \animstep
-  %% outer step 2 body — empty; persistent line shown via \reveal[step=2].
+  %% outer step 2 body - empty; persistent line shown via \reveal[step=2].
 \end{animate}
 \end{dispListing}
 
@@ -365,7 +376,7 @@ of the cascade.
   in the animate body:
 
 \begin{dispListing}
-\begin{animate}[duration=2]     %% default = 2 s (steps 2, 3, …)
+\begin{animate}[duration=2]     %% default = 2 s (steps 2, 3, ...)
   [duration=1]                  %% step 1 = 1 s
   \reveal[step=1]{...}
   \reveal[step=2-3]{...}
@@ -373,10 +384,10 @@ of the cascade.
 \end{animate}
 \end{dispListing}
 
-  This works because \cs{animstep}\oarg{duration=\meta{N}} places the token
+  This works because \cs{animstep}\oarg{duration=\meta{N}} puts the
   sequence \texttt{[duration=\meta{N}]} at the start of the next segment;
-  writing it literally at the start of the body applies the same mechanism
-  to segment~1.
+  writing that sequence literally at the start of the body applies the
+  same mechanism to segment~1.
 \end{docKey}
 
 \begin{docKey}[anim]{steps}{=\meta{N}}{no default}
@@ -401,8 +412,8 @@ of the cascade.
 \begin{docKey}[anim]{loop}{=\texttt{true}\textbar\texttt{false}}{initial: \texttt{true}}
   Controls whether the animation repeats after reaching the last step.
   \begin{itemize}
-    \item \texttt{true} (default) — the animation loops indefinitely.
-    \item \texttt{false} — the animation plays once.  When finished, SMIL
+    \item \texttt{true} (default): the animation loops indefinitely.
+    \item \texttt{false}: the animation plays once.  When finished, SMIL
           \texttt{fill="remove"} (the browser default) takes effect: each
           \cs{reveal} element reverts to its base opacity~(1 = fully
           visible).  See the \docValue{erase} key to suppress all elements
@@ -411,7 +422,7 @@ of the cascade.
   Can be set globally or per-environment.
 
 \begin{dispListing}
-%% One-shot animation — plays through all steps once, then stops.
+%% One-shot animation - plays through all steps once, then stops.
 \begin{animate}[loop=false]
   \reveal{\node {Step 1};}
   \animstep
@@ -422,18 +433,18 @@ of the cascade.
 \end{dispListing}
 
   \medskip\noindent\textbf{End-of-animation resting state.}
-  When the animation ends (\texttt{loop=false}), SMIL \texttt{fill="remove"}
+  When the animation ends (\Verb|loop=false|), SMIL \Verb|fill="remove"|
   causes all \cs{reveal} elements to revert to base opacity~1 (fully
   visible).  Two patterns are available to control what the diagram looks
   like after the animation:
 
   \begin{itemize}
-    \item \textbf{\cs{noanimate} fallback} — place a static element with
+    \item \textbf{\cs{noanimate} fallback}: place a static element with
           \cs{noanimate} in the body.  It is ignored while the animation
           plays, but becomes visible (at full opacity) once all
           \texttt{<animate>} effects are removed.
 
-    \item \textbf{\docValue{erase} key} — mark each transient \cs{reveal}
+    \item \textbf{\docValue{erase} key}: mark each transient \cs{reveal}
           with \texttt{erase}: those elements freeze at opacity~0 when the
           animation ends.  A final \cs{reveal} without \texttt{erase}
           reverts to opacity~1 and stays visible.
@@ -467,11 +478,11 @@ of the cascade.
   \medskip\noindent\textbf{Two usage levels:}
   \begin{itemize}
     \item \textbf{Environment level} ---
-          \verb|\begin{animate}[loop=false, erase]| --- all \cs{reveal}
+          \Verb|\begin{animate}[loop=false, erase]| --- all \cs{reveal}
           elements in the body disappear when the animation ends.
 
     \item \textbf{Per-element level} ---
-          \verb|\reveal[erase]{...}| --- only that element disappears;
+          \Verb|\reveal[erase]{...}| --- only that element disappears;
           \cs{reveal} elements \emph{without} \texttt{erase} revert to
           base opacity~1 (visible) via the default \texttt{fill="remove"}.
   \end{itemize}
@@ -587,11 +598,11 @@ of the cascade.
 
 \begin{dispListing}
 \begin{animate}[duration=2, inactive opacity=0.15]
-  \reveal{\node at (0,1) {Step 1 — static};}
+  \reveal{\node at (0,1) {Step 1 - static};}
   \animstep
-  \reveal[blink=0.4]{\node[fill=yellow] at (0,0) {Step 2 — blinks};}
+  \reveal[blink=0.4]{\node[fill=yellow] at (0,0) {Step 2 - blinks};}
   \animstep
-  \reveal{\node at (0,-1) {Step 3 — static};}
+  \reveal{\node at (0,-1) {Step 3 - static};}
 \end{animate}
 \end{dispListing}
 \end{docKey}
@@ -605,7 +616,7 @@ of the cascade.
   Opacity used during the \emph{``off''} half-periods of the blink oscillation
   \emph{within the active step}.  Defaults to \texttt{0} (fully hidden).
 
-  Between steps the element uses \docValue{inactive opacity} as usual —
+  Between steps the element uses \docValue{inactive opacity} as usual.
   \docValue{blink off opacity} has no effect outside the active step.
   To hide a blink element between steps, set \texttt{inactive opacity=0}
   explicitly; the \docValue{static} key on the \texttt{animate} environment
@@ -617,7 +628,7 @@ of the cascade.
   \reveal{\node at (0,1) {Step 1};}
   \animstep
   \reveal[blink=0.4, inactive opacity=0, blink off opacity=0.25]{%
-    \node[fill=yellow] at (0,0) {Step 2 — dimmed blink};}
+    \node[fill=yellow] at (0,0) {Step 2 - dimmed blink};}
   \animstep
   \reveal{\node at (0,-1) {Step 3};}
 \end{animate}
@@ -650,10 +661,11 @@ of the cascade.
   \medskip
   \noindent\textbf{Syntax of \meta{spec}:}
   \begin{itemize}
-    \item Single step — \texttt{step=2}
-    \item Range — \texttt{step=2-5} (steps 2, 3, 4, 5)
-    \item List — \texttt{step=\{1,3\}} (braces required when listing multiple values)
-    \item Mix  — \texttt{step=\{1,3-5\}} (braces required)
+    \item Single step: \texttt{step=2}
+    \item Range: \texttt{step=2-5} (steps 2, 3, 4, 5)
+    \item List: \texttt{step=\{1,3\}} (braces required when listing
+      multiple values)
+    \item Mix: \texttt{step=\{1,3-5\}} (braces required)
   \end{itemize}
 
   Consecutive steps in the specification are automatically merged into a single
@@ -813,10 +825,10 @@ browser for the full animation.
       \item Rewrote the \cs{Ginclude@bitmap} override to detect the
             \texttt{dvisvgm} version at compile time: the override is now only
             applied with \texttt{dvisvgm}~$\geq 3.4$, which is the version
-            that added \texttt{--embed-bitmaps} support for
-            \verb|dvisvgm:img| specials.
-      \item Renamed \texttt{example.tex} and \texttt{test.tex} to
-            \texttt{svg-animate-example.tex} and \texttt{svg-animate-test.tex}
+            that added \Verb|--embed-bitmaps| support for
+            \Verb|dvisvgm:img| specials.
+      \item Renamed \Verb|example.tex| and \Verb|test.tex| to
+            \Verb|svg-animate-example.tex| and \Verb|svg-animate-test.tex|
             to avoid filename collisions on shared \TeX{} search paths
             (CTAN requirement).
     \end{itemize}

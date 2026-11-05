@@ -1,7 +1,10 @@
 PACKAGE = svg-animate
 VERSION = $(shell grep '\\def\\svganimateversion' $(PACKAGE).sty | sed 's/.*{\(.*\)}/\1/')
 
-.PHONY: all clean ctan
+## Report overfull hboxes wider than this many points.
+CHECK_THRESHOLD = 5
+
+.PHONY: all clean ctan check
 
 all: svg-animate-example.svg svg-animate-test.svg svg-animate.pdf
 
@@ -40,6 +43,18 @@ svg-animate-test.pdf: svg-animate-test.tex svg-animate.sty
 svg-animate.pdf: svg-animate.tex svg-animate.sty svg-animate-example.pdf
 	xelatex $<
 	xelatex $<
+
+## Overfull box report ─────────────────────────────────────────────────────────
+## Portable on macOS (BSD) and Linux (GNU) awk, no gawk extensions.
+
+check: svg-animate.log
+	@sed -n 's/^Overfull .hbox (\([0-9.]*\)pt too wide.*/\1 &/p' \
+	        svg-animate.log | \
+	awk -v t=$(CHECK_THRESHOLD) '{ \
+	    if ($$1 + 0 >= t) { n++; sub(/^[0-9.]+ /, ""); print } \
+	  } \
+	  END { if (n) { printf "%d overfull box(es) >= %spt\n", n, t; exit 1 } \
+	        else printf "no overfull box >= %spt\n", t }'
 
 ## CTAN archive ────────────────────────────────────────────────────────────────
 
